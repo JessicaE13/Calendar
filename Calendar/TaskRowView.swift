@@ -21,15 +21,18 @@ struct TaskRowView: View {
     
     var body: some View {
         HStack(spacing: 12) {
-            // Checkmark button
-            Button(action: {
-                taskManager.toggleTaskCompletion(task)
-            }) {
-                Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                    .foregroundColor(task.isCompleted ? .green : .gray)
-                    .font(.title2)
+            // Left side - Checkmark (only when no time is assigned)
+            if task.assignedTime == nil {
+                // Show checkmark button when no time is assigned
+                Button(action: {
+                    taskManager.toggleTaskCompletion(task)
+                }) {
+                    Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                        .foregroundColor(task.isCompleted ? .green : .gray)
+                        .font(.title2)
+                }
+                .buttonStyle(PlainButtonStyle())
             }
-            .buttonStyle(PlainButtonStyle())
             
             // Task content
             VStack(alignment: .leading, spacing: 4) {
@@ -38,19 +41,16 @@ struct TaskRowView: View {
                     .strikethrough(task.isCompleted)
                     .foregroundColor(task.isCompleted ? .secondary : .primary)
                 
+                // Show time below task name when time is assigned
                 if let _ = task.assignedTime {
                     Text(timeString)
                         .font(.custom("Mulish", size: 12))
-                        .foregroundColor(.secondary)
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 2)
                         .background(Color.orange.opacity(0.1))
                         .cornerRadius(4)
-                } else {
-                    Text("No time set")
-                        .font(.custom("Mulish", size: 12))
-                        .foregroundColor(.secondary)
-                        .italic()
                 }
             }
             
