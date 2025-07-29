@@ -5,6 +5,7 @@ struct ContentView: View {
     @State private var currentMonth = Date()
     @State private var calendarOffset: CGFloat = 0
     @State private var isAnimatingMonthChange = false
+    @StateObject private var taskManager = TaskManager()
     
     var body: some View {
         
