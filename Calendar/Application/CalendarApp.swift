@@ -16,3 +16,9 @@ struct CalendarApp: App {
         }
     }
 }
+
+
+
+#Preview {
+    ContentView()
+}
