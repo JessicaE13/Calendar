@@ -3,6 +3,8 @@ import SwiftUI
 struct ContentView: View {
     @State private var selectedDate = Date()
     @State private var currentMonth = Date()
+    @State private var calendarOffset: CGFloat = 0
+    @State private var isAnimatingMonthChange = false
     
     var body: some View {
 
@@ -35,6 +37,16 @@ struct ContentView: View {
                 CalendarGridView(
                     currentMonth: currentMonth,
                     selectedDate: $selectedDate
+                )
+                .gesture(
+                    DragGesture()
+                        .onEnded { value in
+                            if value.translation.width < -50 {
+                                animateMonthChange(direction: .next)
+                            } else if value.translation.width > 50 {
+                                animateMonthChange(direction: .previous)
+                            }
+                        }
                 )
                 
        
@@ -77,6 +89,43 @@ struct ContentView: View {
         formatter.dateStyle = .full
         return formatter.string(from: selectedDate)
     }
+    
+    enum SwipeDirection {
+        case next, previous
+    }
+
+    private func animateMonthChange(direction: SwipeDirection) {
+        guard !isAnimatingMonthChange else { return }
+        isAnimatingMonthChange = true
+        
+        let directionMultiplier: CGFloat = (direction == .next) ? -1 : 1
+        
+        // Move out
+        withAnimation(.easeInOut(duration: 0.25)) {
+            calendarOffset = directionMultiplier * UIScreen.main.bounds.width
+            isAnimatingMonthChange = true
+        }
+        
+        // Wait for animation, then switch month and animate back in
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            if direction == .next {
+                nextMonth()
+            } else {
+                previousMonth()
+            }
+            calendarOffset = -directionMultiplier * UIScreen.main.bounds.width
+            
+            // Animate back in
+            withAnimation(.easeInOut(duration: 0.25)) {
+                calendarOffset = 0
+            }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                isAnimatingMonthChange = false
+            }
+        }
+    }
+
 }
 
 
