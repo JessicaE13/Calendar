@@ -32,17 +32,22 @@ struct CalendarDayView: View {
         Button(action: {
             selectedDate = date
         }) {
-            Text(dayString)
-                .font(.custom("Mulish", size: 14))
-                .tracking(0.75)
-                .foregroundColor(.primary.opacity(0.75))
-                .frame(width: 40, height: 40)
-                .background(backgroundColor)
-                .cornerRadius(20)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(Color("Accent1"), lineWidth: isToday ? 1.5 : 0)
-                )
+            ZStack {
+                Circle()
+                    .fill(backgroundColor)
+                    .frame(width: 36, height: 36)
+                    .overlay(
+                        Circle()
+                            .stroke(Color("Accent1"), lineWidth: isToday ? 1.5 : 0)
+                    )
+                
+                Text(dayString)
+                    .font(.custom("Mulish", size: 17))
+                    .monospacedDigit() // Forces consistent width for all digits
+                    .foregroundColor(.primary.opacity(0.75))
+                    .frame(width: 20) // Fixed width container for the text
+                    .multilineTextAlignment(.center)
+            }
         }
         .buttonStyle(PlainButtonStyle())
     }

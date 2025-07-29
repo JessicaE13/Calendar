@@ -7,55 +7,54 @@ struct ContentView: View {
     @State private var isAnimatingMonthChange = false
     
     var body: some View {
-
-            VStack(spacing: 0) {
-         
-                HStack {
-
-                    Spacer()
-                    
-                    Text(monthYearString(from: currentMonth))
-                        .font(.title2)
-                                            
-                    Spacer()
-
-                }
-                .padding()
-                
         
-                CalendarGridView(
-                    currentMonth: currentMonth,
-                    selectedDate: $selectedDate
-                )
-                .gesture(
-                    DragGesture()
-                        .onEnded { value in
-                            if value.translation.width < -50 {
-                                animateMonthChange(direction: .next)
-                            } else if value.translation.width > 50 {
-                                animateMonthChange(direction: .previous)
-                            }
-                        }
-                )
-                
-       
-                VStack(spacing: 16) {
-                    Text("Selected Date")
-                
-                        .foregroundColor(.secondary)
-                    
-                    Text(selectedDateString())
-                        .font(.title3)
-                
-                        .padding(.horizontal)
-                        .padding(.vertical, 8)
-                        .background(Color.blue.opacity(0.1))
-                        .cornerRadius(8)
-                }
-                .padding()
+        VStack(spacing: 0) {
+            
+            HStack {
                 
                 Spacer()
-         
+                
+                Text(monthYearString(from: currentMonth))
+                    .font(.title2)
+                
+                Spacer()
+                
+            }
+            .padding()
+            
+            CalendarGridView(
+                currentMonth: currentMonth,
+                selectedDate: $selectedDate
+            )
+            .gesture(
+                DragGesture()
+                    .onEnded { value in
+                        if value.translation.width < -50 {
+                            animateMonthChange(direction: .next)
+                        } else if value.translation.width > 50 {
+                            animateMonthChange(direction: .previous)
+                        }
+                    }
+            )
+            
+            
+            VStack(spacing: 16) {
+                Text("Selected Date")
+                
+                    .foregroundColor(.secondary)
+                
+                Text(selectedDateString())
+                    .font(.title3)
+                
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                    .background(Color.blue.opacity(0.1))
+                    .cornerRadius(8)
+            }
+            .padding()
+            
+            Spacer()
+            
         }
     }
     
@@ -82,7 +81,7 @@ struct ContentView: View {
     enum SwipeDirection {
         case next, previous
     }
-
+    
     private func animateMonthChange(direction: SwipeDirection) {
         guard !isAnimatingMonthChange else { return }
         isAnimatingMonthChange = true
@@ -114,7 +113,7 @@ struct ContentView: View {
             }
         }
     }
-
+    
 }
 
 
