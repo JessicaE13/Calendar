@@ -62,7 +62,7 @@ struct CalendarDayView: View {
     
     private var backgroundColor: Color {
         if isSelected {
-            return .blue
+            return .accentColor
         } else {
             return .clear
         }
