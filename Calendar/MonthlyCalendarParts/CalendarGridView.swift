@@ -46,15 +46,15 @@ struct CalendarGridView: View {
         VStack(spacing: 0) {
 
             HStack {
-                ForEach(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], id: \.self) { day in
+                ForEach(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Qat"], id: \.self) { day in
                     Text(day)
-                        .font(.custom("Mulish", size: 14))
-                        .fontWeight(.medium)
+                        .font(.custom("Mulish", size: 14)) // Adjus
+                        .textCase(.uppercase)
+                        .tracking(0.5)
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity)
                 }
             }
-            .padding(.horizontal)
             .padding(.bottom, 8)
             
 
@@ -69,8 +69,8 @@ struct CalendarGridView: View {
                     }
                 }
             }
-            .padding(.horizontal)
         }
+        .padding(.horizontal, 36)
     }
 }
 
