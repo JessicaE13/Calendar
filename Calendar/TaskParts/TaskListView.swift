@@ -36,9 +36,9 @@ struct TaskListView: View {
                 // Task List
                 if tasksForSelectedDate.isEmpty {
                     VStack(spacing: 8) {
-                        Image(systemName: "checkmark.circle")
+                        Image(systemName: "checkmark.square")
                             .font(.title)
-                            .foregroundColor(.green.opacity(0.6))
+                            .foregroundColor(.black.opacity(0.6))
                         
                         Text("No tasks for this day")
                             .font(.custom("Mulish", size: 16))

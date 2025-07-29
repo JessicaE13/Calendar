@@ -43,7 +43,7 @@ struct TaskRowView: View {
                     Button(action: {
                         taskManager.toggleTaskCompletion(task)
                     }) {
-                        Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                        Image(systemName: task.isCompleted ? "checkmark.square" : "square")
                             .foregroundColor(task.isCompleted ? .green : .gray)
                             .font(.title2)
                     }
