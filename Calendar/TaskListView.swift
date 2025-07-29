@@ -91,12 +91,12 @@ struct TaskListView: View {
                         Image(systemName: "plus")
                             .font(.title2)
                             .fontWeight(.semibold)
-                            .foregroundColor(.white)
+                            .foregroundColor(.primary)
                             .frame(width: 56, height: 56)
                             .background(
                                 Circle()
-                                    .fill(Color.blue)
-                                    .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                                    .fill(Color("Accent1"))
+                                    .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
                             )
                     }
                     .buttonStyle(PlainButtonStyle())

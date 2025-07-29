@@ -15,8 +15,22 @@ struct TaskRowView: View {
     private var timeString: String {
         guard let time = task.assignedTime else { return "" }
         let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        return formatter.string(from: time)
+        let calendar = Calendar.current
+        let minutes = calendar.component(.minute, from: time)
+        
+        if minutes == 0 {
+            formatter.dateFormat = "h" // Just the hour
+            let hour = formatter.string(from: time)
+            formatter.dateFormat = "a" // Just AM/PM
+            let period = formatter.string(from: time).lowercased()
+            return "\(hour) \(period)" // Regular space between hour and am/pm
+        } else {
+            formatter.dateFormat = "h:mm" // Hour and minutes
+            let hourMin = formatter.string(from: time)
+            formatter.dateFormat = "a" // Just AM/PM
+            let period = formatter.string(from: time).lowercased()
+            return "\(hourMin) \(period)" // Regular space between time and am/pm
+        }
     }
     
     var body: some View {
@@ -24,9 +38,8 @@ struct TaskRowView: View {
             showingTaskEditor = true
         }) {
             HStack(spacing: 12) {
-                // Left side - Checkmark (only when no time is assigned)
+                // Checkmark button (only when no time is assigned)
                 if task.assignedTime == nil {
-                    // Show checkmark button when no time is assigned
                     Button(action: {
                         taskManager.toggleTaskCompletion(task)
                     }) {
@@ -37,23 +50,20 @@ struct TaskRowView: View {
                     .buttonStyle(PlainButtonStyle())
                 }
                 
-                // Task content
+                // Task content - combined time and title
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(task.title)
-                        .font(.custom("Mulish", size: 16))
-                        .strikethrough(task.isCompleted)
-                        .foregroundColor(task.isCompleted ? .secondary : .primary)
-                    
-                    // Show time below task name when time is assigned
                     if let _ = task.assignedTime {
-                        Text(timeString)
-                            .font(.custom("Mulish", size: 12))
-                            .fontWeight(.medium)
-                            .foregroundColor(.primary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 2)
-                            .background(Color.orange.opacity(0.1))
-                            .cornerRadius(4)
+                        Text("\(timeString) \(task.title)")
+                            .font(.custom("Mulish", size: 16))
+                            .strikethrough(task.isCompleted)
+                            .foregroundColor(task.isCompleted ? .secondary : .primary)
+                            .multilineTextAlignment(.leading)
+                    } else {
+                        Text(task.title)
+                            .font(.custom("Mulish", size: 16))
+                            .strikethrough(task.isCompleted)
+                            .foregroundColor(task.isCompleted ? .secondary : .primary)
+                            .multilineTextAlignment(.leading)
                     }
                 }
                 
@@ -63,9 +73,6 @@ struct TaskRowView: View {
         .buttonStyle(PlainButtonStyle())
         .padding(.vertical, 8)
         .padding(.horizontal, 12)
-        .background(Color(UIColor.systemBackground))
-        .cornerRadius(8)
-        .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
         .sheet(isPresented: $showingTaskEditor) {
             TaskEditorView(
                 task: task,
