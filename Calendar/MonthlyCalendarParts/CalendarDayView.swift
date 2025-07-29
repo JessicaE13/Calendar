@@ -38,7 +38,7 @@ struct CalendarDayView: View {
                     .frame(width: 36, height: 36)
                     .overlay(
                         Circle()
-                            .stroke(Color("Accent1"), lineWidth: isToday ? 1.5 : 0)
+                            .stroke(Color("Accent1"), lineWidth: isToday ? 1.0 : 0)
                     )
                 
                 Text(dayString)
