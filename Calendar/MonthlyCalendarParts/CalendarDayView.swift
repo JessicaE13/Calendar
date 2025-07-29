@@ -38,6 +38,7 @@ struct CalendarDayView: View {
         }) {
             Text(dayString)
                 .font(.custom("Mulish", size: 14))
+                .tracking(0.5)
                 .foregroundColor(textColor)
                 .frame(width: 40, height: 40)
                 .background(backgroundColor)
@@ -56,7 +57,7 @@ struct CalendarDayView: View {
         } else if isInCurrentMonth {
             return .primary
         } else {
-            return .secondary
+            return .clear
         }
     }
     

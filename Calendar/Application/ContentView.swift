@@ -21,7 +21,7 @@ struct ContentView: View {
                     
                     Text(monthYearString(from: currentMonth))
                         .font(.title2)
-                        .fontWeight(.semibold)
+                        
                     
                     Spacer()
                     
