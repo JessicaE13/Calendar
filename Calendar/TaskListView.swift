@@ -31,57 +31,80 @@ struct TaskListView: View {
     }
     
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // Header
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(selectedDateString)
-                        .font(.custom("Mulish", size: 18))
-                        .fontWeight(.semibold)
+        ZStack {
+            VStack(alignment: .leading, spacing: 16) {
+                // Header (without the + button)
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(selectedDateString)
+                            .font(.custom("Mulish", size: 18))
+                            .fontWeight(.semibold)
+                        
+                        Text("\(tasksForSelectedDate.count) task\(tasksForSelectedDate.count == 1 ? "" : "s")")
+                            .font(.custom("Mulish", size: 14))
+                            .foregroundColor(.secondary)
+                    }
                     
-                    Text("\(tasksForSelectedDate.count) task\(tasksForSelectedDate.count == 1 ? "" : "s")")
-                        .font(.custom("Mulish", size: 14))
-                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                .padding(.horizontal)
+                
+                // Task List
+                if tasksForSelectedDate.isEmpty {
+                    VStack(spacing: 8) {
+                        Image(systemName: "checkmark.circle")
+                            .font(.title)
+                            .foregroundColor(.green.opacity(0.6))
+                        
+                        Text("No tasks for this day")
+                            .font(.custom("Mulish", size: 16))
+                            .foregroundColor(.secondary)
+                        
+                        Text("Tap + to add a task")
+                            .font(.custom("Mulish", size: 14))
+                            .foregroundColor(.secondary.opacity(0.8))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 32)
+                } else {
+                    LazyVStack(spacing: 8) {
+                        ForEach(tasksForSelectedDate) { task in
+                            TaskRowView(taskManager: taskManager, task: task)
+                        }
+                        .onDelete(perform: deleteTasks)
+                    }
+                    .padding(.horizontal)
                 }
                 
                 Spacer()
-                
-                Button(action: {
-                    showingAddTask = true
-                }) {
-                    Image(systemName: "plus.circle.fill")
-                        .foregroundColor(.blue)
-                        .font(.title2)
-                }
-                .buttonStyle(PlainButtonStyle())
             }
-            .padding(.horizontal)
             
-            // Task List
-            if tasksForSelectedDate.isEmpty {
-                VStack(spacing: 8) {
-                    Image(systemName: "checkmark.circle")
-                        .font(.title)
-                        .foregroundColor(.green.opacity(0.6))
+            // Floating Action Button
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
                     
-                    Text("No tasks for this day")
-                        .font(.custom("Mulish", size: 16))
-                        .foregroundColor(.secondary)
-                    
-                    Text("Tap + to add a task")
-                        .font(.custom("Mulish", size: 14))
-                        .foregroundColor(.secondary.opacity(0.8))
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 32)
-            } else {
-                LazyVStack(spacing: 8) {
-                    ForEach(tasksForSelectedDate) { task in
-                        TaskRowView(taskManager: taskManager, task: task)
+                    Button(action: {
+                        showingAddTask = true
+                    }) {
+                        Image(systemName: "plus")
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.white)
+                            .frame(width: 56, height: 56)
+                            .background(
+                                Circle()
+                                    .fill(Color.blue)
+                                    .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
+                            )
                     }
-                    .onDelete(perform: deleteTasks)
+                    .buttonStyle(PlainButtonStyle())
+                    .scaleEffect(1.0)
+                    .animation(.easeInOut(duration: 0.1), value: showingAddTask)
                 }
-                .padding(.horizontal)
+                .padding(.trailing, 20)
+                .padding(.bottom, 20)
             }
         }
         .sheet(isPresented: $showingAddTask) {

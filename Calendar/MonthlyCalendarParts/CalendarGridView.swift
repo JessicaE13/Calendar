@@ -14,6 +14,17 @@ struct CalendarGridView: View {
     private let calendar = Calendar.current
     private let dateFormatter = DateFormatter()
     
+    // Use an array of tuples with unique identifiers
+    private let dayHeaders = [
+        (id: 0, letter: "S"), // Sunday
+        (id: 1, letter: "M"), // Monday
+        (id: 2, letter: "T"), // Tuesday
+        (id: 3, letter: "W"), // Wednesday
+        (id: 4, letter: "T"), // Thursday
+        (id: 5, letter: "F"), // Friday
+        (id: 6, letter: "S")  // Saturday
+    ]
+    
     private var weeks: [[Date?]] {
         guard let monthInterval = calendar.dateInterval(of: .month, for: currentMonth),
               let monthFirstWeek = calendar.dateInterval(of: .weekOfYear, for: monthInterval.start),
@@ -48,8 +59,8 @@ struct CalendarGridView: View {
         VStack(spacing: 0) {
             
             HStack {
-                ForEach(["S", "M", "T", "W", "T", "F", "S"], id: \.self) { day in
-                    Text(day)
+                ForEach(dayHeaders, id: \.id) { dayHeader in
+                    Text(dayHeader.letter)
                         .font(.custom("Mulish", size: 17))
                         .textCase(.uppercase)
                         .fontWeight(.ultraLight)
