@@ -33,22 +33,6 @@ struct TaskListView: View {
     var body: some View {
         ZStack {
             VStack(alignment: .leading, spacing: 16) {
-                // Header (without the + button)
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(selectedDateString)
-                            .font(.custom("Mulish", size: 18))
-                            .fontWeight(.semibold)
-                        
-                        Text("\(tasksForSelectedDate.count) task\(tasksForSelectedDate.count == 1 ? "" : "s")")
-                            .font(.custom("Mulish", size: 14))
-                            .foregroundColor(.secondary)
-                    }
-                    
-                    Spacer()
-                }
-                .padding(.horizontal)
-                
                 // Task List
                 if tasksForSelectedDate.isEmpty {
                     VStack(spacing: 8) {

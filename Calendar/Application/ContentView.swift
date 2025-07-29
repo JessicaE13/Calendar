@@ -43,18 +43,13 @@ struct ContentView: View {
                 )
                 
                 
-                VStack(spacing: 16) {
-                    Text("Selected Date")
-                    
-                        .foregroundColor(.secondary)
-                    
+                HStack {
                     Text(selectedDateString())
                         .font(.title3)
-                    
                         .padding(.horizontal)
                         .padding(.vertical, 8)
-                        .background(Color.blue.opacity(0.1))
-                        .cornerRadius(8)
+                    
+                    Spacer()
                 }
                 .padding()
                 
@@ -129,4 +124,3 @@ struct ContentView: View {
 #Preview {
     ContentView()
 }
-
