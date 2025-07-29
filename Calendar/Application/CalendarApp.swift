@@ -12,7 +12,7 @@ struct CalendarApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
-                .environment(\.font, .custom("Mulish-Regular", size: 17, relativeTo: .body))
+                //.environment(\.font, .custom("Mulish-Regular", size: 17, relativeTo: .body))
         }
     }
 }

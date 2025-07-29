@@ -41,11 +41,11 @@ struct TaskListView: View {
                             .foregroundColor(.black.opacity(0.6))
                         
                         Text("No tasks for this day")
-                            .font(.custom("Mulish", size: 16))
+                            .font(.system(size: 16))
                             .foregroundColor(.secondary)
                         
                         Text("Tap + to add a task")
-                            .font(.custom("Mulish", size: 14))
+                            .font(.system(size: 14))
                             .foregroundColor(.secondary.opacity(0.8))
                     }
                     .frame(maxWidth: .infinity)
@@ -117,17 +117,17 @@ struct AddTaskView: View {
             VStack(spacing: 24) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Task Title")
-                        .font(.custom("Mulish", size: 16))
+                        .font(.system(size: 16))
                         .fontWeight(.medium)
                     
                     TextField("Enter task description", text: $taskTitle)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .font(.custom("Mulish", size: 16))
+                        .font(.system(size: 16))
                 }
                 
                 VStack(alignment: .leading, spacing: 12) {
                     Toggle("Assign Time", isOn: $hasTime)
-                        .font(.custom("Mulish", size: 16))
+                        .font(.system(size: 16))
                         .fontWeight(.medium)
                     
                     if hasTime {

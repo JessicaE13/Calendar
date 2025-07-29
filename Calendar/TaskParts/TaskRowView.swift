@@ -54,13 +54,13 @@ struct TaskRowView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     if let _ = task.assignedTime {
                         Text("\(timeString) \(task.title)")
-                            .font(.custom("Mulish", size: 16))
+                            .font(.system(size: 16))
                             .strikethrough(task.isCompleted)
                             .foregroundColor(task.isCompleted ? .secondary : .primary)
                             .multilineTextAlignment(.leading)
                     } else {
                         Text(task.title)
-                            .font(.custom("Mulish", size: 16))
+                            .font(.system(size: 16))
                             .strikethrough(task.isCompleted)
                             .foregroundColor(task.isCompleted ? .secondary : .primary)
                             .multilineTextAlignment(.leading)
@@ -107,17 +107,17 @@ struct TaskEditorView: View {
             VStack(spacing: 24) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Task Title")
-                        .font(.custom("Mulish", size: 16))
+                        .font(.system(size: 16))
                         .fontWeight(.medium)
                     
                     TextField("Enter task description", text: $taskTitle)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .font(.custom("Mulish", size: 16))
+                        .font(.system(size: 16))
                 }
                 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Date")
-                        .font(.custom("Mulish", size: 16))
+                        .font(.system(size: 16))
                         .fontWeight(.medium)
                     
                     DatePicker("Date", selection: $selectedDate, displayedComponents: .date)
@@ -126,7 +126,7 @@ struct TaskEditorView: View {
                 
                 VStack(alignment: .leading, spacing: 12) {
                     Toggle("Assign Time", isOn: $hasTime)
-                        .font(.custom("Mulish", size: 16))
+                        .font(.system(size: 16))
                         .fontWeight(.medium)
                     
                     if hasTime {
