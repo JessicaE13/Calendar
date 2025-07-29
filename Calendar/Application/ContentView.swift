@@ -11,11 +11,7 @@ struct ContentView: View {
             VStack(spacing: 0) {
          
                 HStack {
-                    Button(action: previousMonth) {
-                        Image(systemName: "chevron.left")
-                            .font(.title2)
-                            .foregroundColor(.blue)
-                    }
+
                     
                     Spacer()
                     
@@ -24,12 +20,7 @@ struct ContentView: View {
                         
                     
                     Spacer()
-                    
-                    Button(action: nextMonth) {
-                        Image(systemName: "chevron.right")
-                            .font(.title2)
-                            .foregroundColor(.blue)
-                    }
+
                 }
                 .padding()
                 

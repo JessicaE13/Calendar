@@ -20,10 +20,6 @@ struct CalendarDayView: View {
         return formatter.string(from: date)
     }
     
-    private var isInCurrentMonth: Bool {
-        calendar.isDate(date, equalTo: currentMonth, toGranularity: .month)
-    }
-    
     private var isSelected: Bool {
         calendar.isDate(date, equalTo: selectedDate, toGranularity: .day)
     }
@@ -39,44 +35,34 @@ struct CalendarDayView: View {
             Text(dayString)
                 .font(.custom("Mulish", size: 14))
                 .tracking(0.75)
-                .foregroundColor(textColor)
+                .foregroundColor(.primary.opacity(0.75))
                 .frame(width: 40, height: 40)
                 .background(backgroundColor)
                 .cornerRadius(20)
                 .overlay(
                     RoundedRectangle(cornerRadius: 20)
-                        .stroke(borderColor, lineWidth: isToday ? 2 : 0)
+                        .stroke(.primary.opacity(0.5), lineWidth: isToday ? 1.5 : 0)
                 )
         }
         .buttonStyle(PlainButtonStyle())
     }
     
     private var textColor: Color {
-        if isSelected {
-            return .white
-        } else if isInCurrentMonth {
-            return .primary
-        } else {
-            return .clear
-        }
+        return isSelected ? .primary :  Color(UIColor.systemGray)
     }
     
     private var backgroundColor: Color {
-        if isSelected {
-            return .accentColor
-        } else {
-            return .clear
-        }
+        return isSelected ? Color("Accent1") : .clear
     }
     
     private var borderColor: Color {
-        return isToday ? .blue : .clear
+        return .gray
     }
 }
 
 #Preview {
     @Previewable @State var selectedDate = Date()
-    CalendarDayView( date: Date(),
-                     currentMonth: Date(),
-                     selectedDate: $selectedDate)
+    CalendarDayView(date: Date(),
+                    currentMonth: Date(),
+                    selectedDate: $selectedDate)
 }
