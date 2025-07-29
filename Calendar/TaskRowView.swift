@@ -83,6 +83,7 @@ struct TaskEditorView: View {
     @State private var taskTitle: String
     @State private var hasTime: Bool
     @State private var selectedTime: Date
+    @State private var selectedDate: Date // Add date picker state
     
     init(task: Task, taskManager: TaskManager, isPresented: Binding<Bool>) {
         self.task = task
@@ -91,6 +92,7 @@ struct TaskEditorView: View {
         self._taskTitle = State(initialValue: task.title)
         self._hasTime = State(initialValue: task.assignedTime != nil)
         self._selectedTime = State(initialValue: task.assignedTime ?? Date())
+        self._selectedDate = State(initialValue: task.assignedDate)
     }
     
     var body: some View {
@@ -104,6 +106,15 @@ struct TaskEditorView: View {
                     TextField("Enter task description", text: $taskTitle)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                         .font(.custom("Mulish", size: 16))
+                }
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Date")
+                        .font(.custom("Mulish", size: 16))
+                        .fontWeight(.medium)
+                    
+                    DatePicker("Date", selection: $selectedDate, displayedComponents: .date)
+                        .datePickerStyle(CompactDatePickerStyle())
                 }
                 
                 VStack(alignment: .leading, spacing: 12) {
@@ -147,18 +158,17 @@ struct TaskEditorView: View {
             .navigationTitle("Edit Task")
             .navigationBarTitleDisplayMode(.inline)
         }
-        .presentationDetents([.height(400)])
+        .presentationDetents([.height(500)]) // Increased height for date picker
     }
     
     private func updateTask() {
         if let index = taskManager.tasks.firstIndex(where: { $0.id == task.id }) {
             taskManager.tasks[index].title = taskTitle
+            taskManager.tasks[index].assignedDate = Calendar.current.startOfDay(for: selectedDate)
             taskManager.tasks[index].assignedTime = hasTime ? selectedTime : nil
         }
     }
 }
-
-// Remove the old TimePickerView since it's no longer needed
 
 #Preview {
     let taskManager = TaskManager()

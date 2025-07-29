@@ -79,14 +79,13 @@ struct TaskListView: View {
                     ForEach(tasksForSelectedDate) { task in
                         TaskRowView(taskManager: taskManager, task: task)
                     }
-                    .onMove(perform: taskManager.moveTask)
                     .onDelete(perform: deleteTasks)
                 }
                 .padding(.horizontal)
             }
         }
         .sheet(isPresented: $showingAddTask) {
-            AddTaskView(taskManager: taskManager, isPresented: $showingAddTask)
+            AddTaskView(taskManager: taskManager, selectedDate: selectedDate, isPresented: $showingAddTask)
         }
     }
     
@@ -100,6 +99,7 @@ struct TaskListView: View {
 
 struct AddTaskView: View {
     @ObservedObject var taskManager: TaskManager
+    let selectedDate: Date // Add selectedDate parameter
     @Binding var isPresented: Bool
     @State private var taskTitle = ""
     @State private var hasTime = false
@@ -143,6 +143,7 @@ struct AddTaskView: View {
                     Button("Add Task") {
                         let newTask = Task(
                             title: taskTitle,
+                            assignedDate: selectedDate, // Use the selected date
                             assignedTime: hasTime ? selectedTime : nil,
                             sortOrder: taskManager.tasks.count
                         )

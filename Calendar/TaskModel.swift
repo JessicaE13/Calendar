@@ -11,11 +11,13 @@ struct Task: Identifiable, Codable {
     let id = UUID()
     var title: String
     var isCompleted: Bool = false
-    var assignedTime: Date? = nil
+    var assignedDate: Date // Changed to store the full date
+    var assignedTime: Date? = nil // This will store just the time component
     var sortOrder: Int = 0
     
-    init(title: String, assignedTime: Date? = nil, sortOrder: Int = 0) {
+    init(title: String, assignedDate: Date = Date(), assignedTime: Date? = nil, sortOrder: Int = 0) {
         self.title = title
+        self.assignedDate = Calendar.current.startOfDay(for: assignedDate) // Normalize to start of day
         self.assignedTime = assignedTime
         self.sortOrder = sortOrder
     }
@@ -25,12 +27,41 @@ class TaskManager: ObservableObject {
     @Published var tasks: [Task] = []
     
     init() {
-        // Sample tasks for demonstration
+        let calendar = Calendar.current
+        let today = Date()
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) ?? today
+        let dayAfterTomorrow = calendar.date(byAdding: .day, value: 2, to: today) ?? today
+        
+        // Sample tasks for demonstration with different dates
         self.tasks = [
-            Task(title: "Team Meeting", assignedTime: Calendar.current.date(bySettingHour: 10, minute: 0, second: 0, of: Date()), sortOrder: 0),
-            Task(title: "Yoga Class", assignedTime: Calendar.current.date(bySettingHour: 16, minute: 0, second: 0, of: Date()), sortOrder: 1),
-            Task(title: "Groceries", sortOrder: 2),
-            Task(title: "Email and Inbox DMx", sortOrder: 3)
+            Task(
+                title: "Team Meeting",
+                assignedDate: today,
+                assignedTime: calendar.date(bySettingHour: 10, minute: 0, second: 0, of: today),
+                sortOrder: 0
+            ),
+            Task(
+                title: "Yoga Class",
+                assignedDate: today,
+                assignedTime: calendar.date(bySettingHour: 16, minute: 0, second: 0, of: today),
+                sortOrder: 1
+            ),
+            Task(
+                title: "Groceries",
+                assignedDate: tomorrow,
+                sortOrder: 2
+            ),
+            Task(
+                title: "Email and Inbox DMx",
+                assignedDate: today,
+                sortOrder: 3
+            ),
+            Task(
+                title: "Doctor Appointment",
+                assignedDate: dayAfterTomorrow,
+                assignedTime: calendar.date(bySettingHour: 14, minute: 30, second: 0, of: dayAfterTomorrow),
+                sortOrder: 4
+            )
         ]
     }
     
@@ -58,6 +89,8 @@ class TaskManager: ObservableObject {
     }
     
     func moveTask(from source: IndexSet, to destination: Int) {
+        // Get the currently selected date to filter tasks properly
+        // This method will need to be updated to work with the current date context
         tasks.move(fromOffsets: source, toOffset: destination)
         reorderTasks()
     }
@@ -69,7 +102,22 @@ class TaskManager: ObservableObject {
     }
     
     func tasksForDate(_ date: Date) -> [Task] {
-        // For now, return all tasks. You can modify this to filter by date
-        return tasks.sorted { $0.sortOrder < $1.sortOrder }
+        let calendar = Calendar.current
+        let targetDate = calendar.startOfDay(for: date)
+        
+        return tasks.filter { task in
+            calendar.isDate(task.assignedDate, equalTo: targetDate, toGranularity: .day)
+        }.sorted { task1, task2 in
+            // Sort by time first (if both have times), then by sort order
+            if let time1 = task1.assignedTime, let time2 = task2.assignedTime {
+                return time1 < time2
+            } else if task1.assignedTime != nil && task2.assignedTime == nil {
+                return true // Tasks with times come first
+            } else if task1.assignedTime == nil && task2.assignedTime != nil {
+                return false // Tasks without times come after
+            } else {
+                return task1.sortOrder < task2.sortOrder
+            }
+        }
     }
 }

@@ -48,9 +48,9 @@ struct CalendarGridView: View {
         VStack(spacing: 0) {
             
             HStack {
-                ForEach(["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"], id: \.self) { day in
+                ForEach(["S", "M", "T", "W", "T", "F", "S"], id: \.self) { day in
                     Text(day)
-                        .font(.custom("Mulish", size: 10))
+                        .font(.custom("Mulish", size: 17))
                         .textCase(.uppercase)
                         .fontWeight(.ultraLight)
                         .tracking(1.0)
