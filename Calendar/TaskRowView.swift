@@ -10,7 +10,7 @@ import SwiftUI
 struct TaskRowView: View {
     @ObservedObject var taskManager: TaskManager
     let task: Task
-    @State private var showingTimePicker = false
+    @State private var showingTaskEditor = false
     
     private var timeString: String {
         guard let time = task.assignedTime else { return "" }
@@ -20,94 +20,109 @@ struct TaskRowView: View {
     }
     
     var body: some View {
-        HStack(spacing: 12) {
-            // Left side - Checkmark (only when no time is assigned)
-            if task.assignedTime == nil {
-                // Show checkmark button when no time is assigned
-                Button(action: {
-                    taskManager.toggleTaskCompletion(task)
-                }) {
-                    Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
-                        .foregroundColor(task.isCompleted ? .green : .gray)
-                        .font(.title2)
+        Button(action: {
+            showingTaskEditor = true
+        }) {
+            HStack(spacing: 12) {
+                // Left side - Checkmark (only when no time is assigned)
+                if task.assignedTime == nil {
+                    // Show checkmark button when no time is assigned
+                    Button(action: {
+                        taskManager.toggleTaskCompletion(task)
+                    }) {
+                        Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                            .foregroundColor(task.isCompleted ? .green : .gray)
+                            .font(.title2)
+                    }
+                    .buttonStyle(PlainButtonStyle())
                 }
-                .buttonStyle(PlainButtonStyle())
-            }
-            
-            // Task content
-            VStack(alignment: .leading, spacing: 4) {
-                Text(task.title)
-                    .font(.custom("Mulish", size: 16))
-                    .strikethrough(task.isCompleted)
-                    .foregroundColor(task.isCompleted ? .secondary : .primary)
                 
-                // Show time below task name when time is assigned
-                if let _ = task.assignedTime {
-                    Text(timeString)
-                        .font(.custom("Mulish", size: 12))
-                        .fontWeight(.medium)
-                        .foregroundColor(.primary)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .background(Color.orange.opacity(0.1))
-                        .cornerRadius(4)
+                // Task content
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(task.title)
+                        .font(.custom("Mulish", size: 16))
+                        .strikethrough(task.isCompleted)
+                        .foregroundColor(task.isCompleted ? .secondary : .primary)
+                    
+                    // Show time below task name when time is assigned
+                    if let _ = task.assignedTime {
+                        Text(timeString)
+                            .font(.custom("Mulish", size: 12))
+                            .fontWeight(.medium)
+                            .foregroundColor(.primary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(Color.orange.opacity(0.1))
+                            .cornerRadius(4)
+                    }
                 }
+                
+                Spacer()
             }
-            
-            Spacer()
-            
-            // Time assignment button
-            Button(action: {
-                showingTimePicker = true
-            }) {
-                Image(systemName: "clock")
-                    .foregroundColor(.blue)
-                    .font(.title3)
-            }
-            .buttonStyle(PlainButtonStyle())
         }
+        .buttonStyle(PlainButtonStyle())
         .padding(.vertical, 8)
         .padding(.horizontal, 12)
         .background(Color(UIColor.systemBackground))
         .cornerRadius(8)
         .shadow(color: .black.opacity(0.05), radius: 2, x: 0, y: 1)
-        .sheet(isPresented: $showingTimePicker) {
-            TimePickerView(
+        .sheet(isPresented: $showingTaskEditor) {
+            TaskEditorView(
                 task: task,
                 taskManager: taskManager,
-                isPresented: $showingTimePicker
+                isPresented: $showingTaskEditor
             )
         }
     }
 }
 
-struct TimePickerView: View {
+struct TaskEditorView: View {
     let task: Task
     @ObservedObject var taskManager: TaskManager
     @Binding var isPresented: Bool
+    @State private var taskTitle: String
+    @State private var hasTime: Bool
     @State private var selectedTime: Date
     
     init(task: Task, taskManager: TaskManager, isPresented: Binding<Bool>) {
         self.task = task
         self.taskManager = taskManager
         self._isPresented = isPresented
+        self._taskTitle = State(initialValue: task.title)
+        self._hasTime = State(initialValue: task.assignedTime != nil)
         self._selectedTime = State(initialValue: task.assignedTime ?? Date())
     }
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 20) {
-                Text("Set Time for Task")
-                    .font(.title2)
-                    .padding()
+            VStack(spacing: 24) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Task Title")
+                        .font(.custom("Mulish", size: 16))
+                        .fontWeight(.medium)
+                    
+                    TextField("Enter task description", text: $taskTitle)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .font(.custom("Mulish", size: 16))
+                }
                 
-                DatePicker("Time", selection: $selectedTime, displayedComponents: .hourAndMinute)
-                    .datePickerStyle(WheelDatePickerStyle())
-                    .labelsHidden()
+                VStack(alignment: .leading, spacing: 12) {
+                    Toggle("Assign Time", isOn: $hasTime)
+                        .font(.custom("Mulish", size: 16))
+                        .fontWeight(.medium)
+                    
+                    if hasTime {
+                        DatePicker("Time", selection: $selectedTime, displayedComponents: .hourAndMinute)
+                            .datePickerStyle(WheelDatePickerStyle())
+                            .labelsHidden()
+                    }
+                }
+                
+                Spacer()
                 
                 HStack(spacing: 16) {
-                    Button("Remove Time") {
-                        taskManager.updateTaskTime(task, time: nil)
+                    Button("Delete") {
+                        taskManager.deleteTask(task)
                         isPresented = false
                     }
                     .foregroundColor(.red)
@@ -117,22 +132,33 @@ struct TimePickerView: View {
                     Button("Cancel") {
                         isPresented = false
                     }
+                    .foregroundColor(.secondary)
                     
                     Button("Save") {
-                        taskManager.updateTaskTime(task, time: selectedTime)
+                        updateTask()
                         isPresented = false
                     }
                     .fontWeight(.semibold)
+                    .disabled(taskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
                 .padding()
-                
-                Spacer()
             }
+            .padding()
+            .navigationTitle("Edit Task")
             .navigationBarTitleDisplayMode(.inline)
         }
-        .presentationDetents([.height(300)])
+        .presentationDetents([.height(400)])
+    }
+    
+    private func updateTask() {
+        if let index = taskManager.tasks.firstIndex(where: { $0.id == task.id }) {
+            taskManager.tasks[index].title = taskTitle
+            taskManager.tasks[index].assignedTime = hasTime ? selectedTime : nil
+        }
     }
 }
+
+// Remove the old TimePickerView since it's no longer needed
 
 #Preview {
     let taskManager = TaskManager()
