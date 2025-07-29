@@ -8,7 +8,7 @@
 import Foundation
 
 struct Task: Identifiable, Codable {
-    let id = UUID()
+    var id = UUID()  // Changed from 'let' to 'var'
     var title: String
     var isCompleted: Bool = false
     var assignedDate: Date // Changed to store the full date
