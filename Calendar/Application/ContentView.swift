@@ -12,13 +12,11 @@ struct ContentView: View {
          
                 HStack {
 
-                    
                     Spacer()
                     
                     Text(monthYearString(from: currentMonth))
                         .font(.title2)
-                        
-                    
+                                            
                     Spacer()
 
                 }

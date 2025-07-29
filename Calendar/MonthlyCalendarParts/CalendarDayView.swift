@@ -41,7 +41,7 @@ struct CalendarDayView: View {
                 .cornerRadius(20)
                 .overlay(
                     RoundedRectangle(cornerRadius: 20)
-                        .stroke(.primary.opacity(0.5), lineWidth: isToday ? 1.5 : 0)
+                        .stroke(Color("Accent1"), lineWidth: isToday ? 1.5 : 0)
                 )
         }
         .buttonStyle(PlainButtonStyle())
@@ -55,9 +55,6 @@ struct CalendarDayView: View {
         return isSelected ? Color("Accent1") : .clear
     }
     
-    private var borderColor: Color {
-        return .gray
-    }
 }
 
 #Preview {
