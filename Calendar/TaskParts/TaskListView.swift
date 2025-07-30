@@ -72,28 +72,45 @@ struct TaskListView: View {
                         //                            .frame(width: 2)
                         //                            .padding()
                         //
-                        LazyVStack(spacing: 4) {
-                            ForEach(Array(tasksForSelectedDate.enumerated()), id: \.element.id) { index, task in
-                                HStack(alignment: .center, spacing: 28) {
-                                    ZStack {
-                                        Circle()
-                                            .fill(.primary.opacity(0.7))
-                                            .frame(width: 8, height: 8)
-                                      
-                                        Rectangle()
-                                            .fill(.primary.opacity(0.3))
-                                            .frame(width: 2)
-                                            
-                                    }
-                                    TaskRowView(taskManager: taskManager, task: task)
+          
+
+                            LazyVStack(spacing: 4) {
+                                ZStack (alignment: .leading) {
+                                Rectangle()
+                                                           .fill(
+                                                               LinearGradient(
+                                                                   gradient: Gradient(stops: [
+                                                                       .init(color: .clear, location: 0.0),
+                                                                       .init(color: .primary.opacity(0.3), location: 0.1),
+                                                                       .init(color: .primary.opacity(0.3), location: 0.9),
+                                                                       .init(color: .clear, location: 1.0)
+                                                                   ]),
+                                                                   startPoint: .top,
+                                                                   endPoint: .bottom
+                                                               )
+                                                           )
+                                                           .frame(width: 2)
+                                                           .padding(.leading, 56)
+                                VStack {
                                     
-                                    Spacer()
+                                    
+                                    ForEach(Array(tasksForSelectedDate.enumerated()), id: \.element.id) { index, task in
+                                        HStack(alignment: .center, spacing: 28) {
+                                            Circle()
+                                                .fill(.primary.opacity(0.7))
+                                                .frame(width: 8, height: 8)
+                                            
+                                            TaskRowView(taskManager: taskManager, task: task)
+                                            
+                                            Spacer()
+                                        }
+                                        .padding(.horizontal, 20)
+                                        .padding(.leading, 48)
+                                    }
+                                    .onDelete(perform: deleteTasks)
                                 }
-                                .padding(.horizontal, 20)
-                                .padding(.leading, 48)
                             }
-                            .onDelete(perform: deleteTasks)
-                        }
+                    }
                     }
                 }
                 
