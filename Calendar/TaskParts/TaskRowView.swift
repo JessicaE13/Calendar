@@ -95,6 +95,8 @@ struct TaskRowView: View {
                 taskManager: taskManager,
                 isPresented: $showingTaskEditor
             )
+            .presentationCornerRadius(30)
+            .presentationBackground(Color(red: 0.96, green: 0.94, blue: 0.89)) // Beige background
         }
     }
 }
@@ -182,6 +184,8 @@ struct TaskEditorView: View {
             .navigationBarTitleDisplayMode(.inline)
         }
         .presentationDetents([.height(500)]) // Increased height for date picker
+        .presentationCornerRadius(50)
+        .presentationBackground(Color(red: 0.96, green: 0.94, blue: 0.89)) // Beige background
     }
     
     private func updateTask() {
