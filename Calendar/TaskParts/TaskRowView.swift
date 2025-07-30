@@ -55,7 +55,7 @@ struct TaskRowView: View {
                     if let _ = task.assignedTime {
                         // Task with time - add background with rounded corners
                         Text("\(timeString) \(task.title)")
-                            .font(.custom("Mulish", size: 16))
+                            .font(.system(size: 16))
                             .strikethrough(task.isCompleted)
                             .foregroundColor(task.isCompleted ? .secondary : .primary)
                             .multilineTextAlignment(.leading)
@@ -68,7 +68,7 @@ struct TaskRowView: View {
                     } else {
                         // Task without time - no background
                         Text(task.title)
-                            .font(.custom("Mulish", size: 16))
+                            .font(.system(size: 16))
                             .strikethrough(task.isCompleted)
                             .foregroundColor(task.isCompleted ? .secondary : .primary)
                             .multilineTextAlignment(.leading)
