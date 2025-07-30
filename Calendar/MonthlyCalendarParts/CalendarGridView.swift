@@ -63,7 +63,7 @@ struct CalendarGridView: View {
                     Text(dayHeader.letter)
                         .font(.system(size: 14))
                         .textCase(.uppercase)
-                        .fontWeight(.bold)
+                        .fontWeight(.semibold)
                         .tracking(1.0)
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity)

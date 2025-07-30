@@ -43,7 +43,7 @@ struct CalendarDayView: View {
                 
                 Text(dayString)
                     .font(.system(size: 14))
-                    .fontWeight(.bold)
+                    .fontWeight(.semibold)
                     .monospacedDigit()
                     .foregroundColor(textColor)
                     .frame(width: 20)
@@ -54,7 +54,7 @@ struct CalendarDayView: View {
     }
     
     private var textColor: Color {
-        return isSelected ? .white :  Color(UIColor.systemGray)
+        return isSelected ? .white :  .primary.opacity(0.7)
     }
     
     private var backgroundColor: Color {

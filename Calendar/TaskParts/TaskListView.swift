@@ -67,7 +67,7 @@ struct TaskListView: View {
                                 Spacer()
                             }
                             .padding(.horizontal, 20)
-                            .padding(.leading, 60)
+                            .padding(.leading, 48)
                         }
                         .onDelete(perform: deleteTasks)
                     }
