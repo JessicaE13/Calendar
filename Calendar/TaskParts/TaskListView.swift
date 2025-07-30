@@ -33,66 +33,43 @@ struct TaskListView: View {
     var body: some View {
         ZStack {
             VStack(alignment: .leading, spacing: 16) {
-                // Task List with vertical line and dots
+        
                 if tasksForSelectedDate.isEmpty {
-                    HStack(alignment: .top, spacing: 0) {
-                        // Vertical line for empty state
-                        Rectangle()
-                            .fill(Color("Accent1").opacity(0.4))
-                            .frame(width: 2)
-                            .padding(.leading, 20)
+                   
+                    VStack(spacing: 8) {
+                        Image(systemName: "checkmark.square")
+                            .font(.title)
+                            .foregroundColor(.black.opacity(0.6))
                         
-                        // Empty state content
-                        VStack(spacing: 8) {
-                            Image(systemName: "checkmark.square")
-                                .font(.title)
-                                .foregroundColor(.black.opacity(0.6))
-                            
-                            Text("No tasks for this day")
-                                .font(.system(size: 16))
-                                .foregroundColor(.secondary)
-                            
-                            Text("Tap + to add a task")
-                                .font(.system(size: 14))
-                                .foregroundColor(.secondary.opacity(0.8))
-                        }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 32)
-                        .padding(.leading, 16)
-                        .padding(.trailing, 20)
+                        Text("No tasks for this day")
+                            .font(.system(size: 16))
+                            .foregroundColor(.secondary)
                         
-                        Spacer()
+                        Text("Tap + to add a task")
+                            .font(.system(size: 14))
+                            .foregroundColor(.secondary.opacity(0.8))
                     }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 32)
+                    .padding(.horizontal, 20)
                 } else {
-                    // Tasks with continuous timeline
-                    ZStack(alignment: .topLeading) {
-                        // Single continuous vertical line
-                        Rectangle()
-                            .fill(Color("Accent1").opacity(0.4))
-                            .frame(width: 2)
-                            .offset(x: 21) // 20 (padding) + 1 (center on line)
-                        
-                        // Tasks and dots
-                        LazyVStack(spacing: 8) {
-                            ForEach(Array(tasksForSelectedDate.enumerated()), id: \.element.id) { index, task in
-                                HStack(alignment: .top, spacing: 0) {
-                                    // Dot positioned over the line
-                                    Circle()
-                                        .fill(Color("Accent1"))
-                                        .frame(width: 8, height: 8)
-                                        .padding(.leading, 18) // 17 + 1 pixel to the right
-                                        .padding(.top, 22) // 12 + 10 pixels down
-                                    
-                                    // Task content
-                                    TaskRowView(taskManager: taskManager, task: task)
-                                        .padding(.leading, 4) // Remaining space to reach 12 total
-                                        .padding(.trailing, 20) // Right padding
-                                    
-                                    Spacer()
-                                }
+      
+                    LazyVStack(spacing: 8) {
+                        ForEach(Array(tasksForSelectedDate.enumerated()), id: \.element.id) { index, task in
+                            HStack(alignment: .center, spacing: 28) {
+                              
+                                Circle()
+                                    .fill(Color("Accent1"))
+                                    .frame(width: 8, height: 8)
+                                
+                                TaskRowView(taskManager: taskManager, task: task)
+                                
+                                Spacer()
                             }
-                            .onDelete(perform: deleteTasks)
+                            .padding(.horizontal, 20)
+                            .padding(.leading, 60)
                         }
+                        .onDelete(perform: deleteTasks)
                     }
                 }
                 
