@@ -53,47 +53,16 @@ struct TaskListView: View {
                     .padding(.vertical, 32)
                     .padding(.horizontal, 20)
                 } else {
-                    // Tasks container with vertical line
+                    
                     HStack {
-                        //                        // Vertical line with gradient fade
-                        //                        Rectangle()
-                        //                            .fill(
-                        //                                LinearGradient(
-                        //                                    gradient: Gradient(stops: [
-                        //                                        .init(color: .clear, location: 0.0),
-                        //                                        .init(color: .primary.opacity(0.3), location: 0.1),
-                        //                                        .init(color: .primary.opacity(0.3), location: 0.9),
-                        //                                        .init(color: .clear, location: 1.0)
-                        //                                    ]),
-                        //                                    startPoint: .top,
-                        //                                    endPoint: .bottom
-                        //                                )
-                        //                            )
-                        //                            .frame(width: 2)
-                        //                            .padding()
-                        //
-          
-
-                            LazyVStack(spacing: 4) {
-                                ZStack (alignment: .leading) {
+                        
+                        LazyVStack(spacing: 4) {
+                            ZStack (alignment: .leading) {
                                 Rectangle()
-                                                           .fill(
-                                                               LinearGradient(
-                                                                   gradient: Gradient(stops: [
-                                                                       .init(color: .clear, location: 0.0),
-                                                                       .init(color: .primary.opacity(0.3), location: 0.1),
-                                                                       .init(color: .primary.opacity(0.3), location: 0.9),
-                                                                       .init(color: .clear, location: 1.0)
-                                                                   ]),
-                                                                   startPoint: .top,
-                                                                   endPoint: .bottom
-                                                               )
-                                                           )
-                                                           .frame(width: 2)
-                                                           .padding(.leading, 56)
+                                    .fill(.primary.opacity(0.3))
+                                    .frame(width: 2)
+                                    .padding(.leading, 56)
                                 VStack {
-                                    
-                                    
                                     ForEach(Array(tasksForSelectedDate.enumerated()), id: \.element.id) { index, task in
                                         HStack(alignment: .center, spacing: 28) {
                                             Circle()
@@ -110,7 +79,7 @@ struct TaskListView: View {
                                     .onDelete(perform: deleteTasks)
                                 }
                             }
-                    }
+                        }
                     }
                 }
                 
