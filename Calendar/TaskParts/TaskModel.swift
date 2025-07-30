@@ -1,17 +1,26 @@
 //
-//  Task.swift
+//  TaskModel.swift
 //  Calendar
 //
-//  Created by Jessica Estes on 7/29/25.
+//  Updated with CloudKit support - Fixed version
 //
 
 import Foundation
+import CloudKit
 
 struct ChecklistItem: Identifiable, Codable {
     var id = UUID()
     var title: String
     var isCompleted: Bool = false
     var sortOrder: Int = 0
+    var recordID: CKRecord.ID?
+    var parentTaskRecordID: CKRecord.ID?
+    
+    // Custom coding keys to handle CloudKit fields
+    enum CodingKeys: String, CodingKey {
+        case id, title, isCompleted, sortOrder
+        // recordID and parentTaskRecordID are not encoded/decoded
+    }
 }
 
 struct Task: Identifiable, Codable {
@@ -23,6 +32,8 @@ struct Task: Identifiable, Codable {
     var assignedTime: Date? = nil
     var sortOrder: Int = 0
     var checklist: [ChecklistItem] = []
+    var recordID: CKRecord.ID?
+    var lastModified: Date = Date()
     
     init(title: String, description: String = "", assignedDate: Date = Date(), assignedTime: Date? = nil, sortOrder: Int = 0) {
         self.title = title
@@ -30,13 +41,121 @@ struct Task: Identifiable, Codable {
         self.assignedDate = Calendar.current.startOfDay(for: assignedDate)
         self.assignedTime = assignedTime
         self.sortOrder = sortOrder
+        self.lastModified = Date()
+    }
+    
+    // Custom coding keys to handle CloudKit fields
+    enum CodingKeys: String, CodingKey {
+        case id, title, description, isCompleted, assignedDate, assignedTime, sortOrder, checklist, lastModified
+        // recordID is not encoded/decoded
+    }
+}
+
+// CloudKit extensions
+extension Task {
+    // Convert to CloudKit record
+    func toCKRecord() -> CKRecord {
+        let record = CKRecord(recordType: "Task", recordID: recordID ?? CKRecord.ID())
+        record["title"] = title
+        record["taskDescription"] = description
+        record["isCompleted"] = isCompleted ? 1 : 0
+        record["assignedDate"] = assignedDate
+        record["assignedTime"] = assignedTime
+        record["sortOrder"] = sortOrder
+        record["lastModified"] = lastModified
+        record["userID"] = id.uuidString
+        return record
+    }
+    
+    // Create from CloudKit record
+    static func fromCKRecord(_ record: CKRecord) -> Task? {
+        guard let title = record["title"] as? String,
+              let assignedDate = record["assignedDate"] as? Date else {
+            return nil
+        }
+        
+        var task = Task(
+            title: title,
+            description: record["taskDescription"] as? String ?? "",
+            assignedDate: assignedDate,
+            assignedTime: record["assignedTime"] as? Date,
+            sortOrder: record["sortOrder"] as? Int ?? 0
+        )
+        
+        let isCompletedValue = record["isCompleted"] as? Int ?? 0
+        task.isCompleted = isCompletedValue == 1
+        task.recordID = record.recordID
+        task.lastModified = record["lastModified"] as? Date ?? Date()
+        
+        if let userIDString = record["userID"] as? String,
+           let userID = UUID(uuidString: userIDString) {
+            task.id = userID
+        }
+        
+        return task
+    }
+}
+
+extension ChecklistItem {
+    func toCKRecord() -> CKRecord {
+        let record = CKRecord(recordType: "ChecklistItem", recordID: recordID ?? CKRecord.ID())
+        record["title"] = title
+        record["isCompleted"] = isCompleted ? 1 : 0
+        record["sortOrder"] = sortOrder
+        record["userID"] = id.uuidString
+        
+        if let parentRecordID = parentTaskRecordID {
+            record["parentTask"] = CKRecord.Reference(recordID: parentRecordID, action: .deleteSelf)
+        }
+        
+        return record
+    }
+    
+    static func fromCKRecord(_ record: CKRecord) -> ChecklistItem? {
+        guard let title = record["title"] as? String else {
+            return nil
+        }
+        
+        var item = ChecklistItem(
+            title: title,
+            sortOrder: record["sortOrder"] as? Int ?? 0
+        )
+        
+        let isCompletedValue = record["isCompleted"] as? Int ?? 0
+        item.isCompleted = isCompletedValue == 1
+        item.recordID = record.recordID
+        
+        if let userIDString = record["userID"] as? String,
+           let userID = UUID(uuidString: userIDString) {
+            item.id = userID
+        }
+        
+        if let parentReference = record["parentTask"] as? CKRecord.Reference {
+            item.parentTaskRecordID = parentReference.recordID
+        }
+        
+        return item
     }
 }
 
 class TaskManager: ObservableObject {
     @Published var tasks: [Task] = []
+    @Published var isLoading = false
+    @Published var errorMessage: String?
+    @Published var showingError = false
+    
+    private let cloudKitManager = CloudKitManager.shared
     
     init() {
+        loadSampleTasks()
+        setupCloudKitObservers()
+    }
+    
+    private func setupCloudKitObservers() {
+        // We'll implement CloudKit sync after fixing the basic structure
+    }
+    
+    private func loadSampleTasks() {
         let calendar = Calendar.current
         let today = Date()
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) ?? today

@@ -90,7 +90,7 @@ struct CalendarGridView: View {
                 }
             }
         }
-        .padding(.horizontal, 64)
+        .padding(.horizontal, 72)
     }
 }
 
