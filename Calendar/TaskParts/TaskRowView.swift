@@ -10,7 +10,7 @@ import SwiftUI
 struct TaskRowView: View {
     @ObservedObject var taskManager: TaskManager
     let task: Task
-    @State private var showingTaskEditor = false
+    @State private var showingItemDetails = false
     
     private var timeComponents: (time: String, period: String) {
         guard let time = task.assignedTime else { return ("", "") }
@@ -35,7 +35,7 @@ struct TaskRowView: View {
     
     var body: some View {
         Button(action: {
-            showingTaskEditor = true
+            showingItemDetails = true
         }) {
             HStack(spacing: 12) {
                 // Checkmark button (only when no time is assigned)
@@ -88,112 +88,586 @@ struct TaskRowView: View {
         }
         .buttonStyle(PlainButtonStyle())
         .padding(.vertical, 8)
-        // Removed horizontal padding since it's now handled at the list level
-        .sheet(isPresented: $showingTaskEditor) {
-            TaskEditorView(
+        .sheet(isPresented: $showingItemDetails) {
+            ItemDetailsView(
                 task: task,
                 taskManager: taskManager,
-                isPresented: $showingTaskEditor
+                isPresented: $showingItemDetails
             )
             .presentationCornerRadius(30)
-            .presentationBackground(Color(red: 0.96, green: 0.94, blue: 0.89)) // Beige background
+            .presentationBackground(Color(red: 0.96, green: 0.94, blue: 0.89))
         }
     }
 }
 
-struct TaskEditorView: View {
+struct ItemDetailsView: View {
     let task: Task
     @ObservedObject var taskManager: TaskManager
     @Binding var isPresented: Bool
-    @State private var taskTitle: String
-    @State private var hasTime: Bool
-    @State private var selectedTime: Date
-    @State private var selectedDate: Date // Add date picker state
     
-    init(task: Task, taskManager: TaskManager, isPresented: Binding<Bool>) {
-        self.task = task
-        self.taskManager = taskManager
-        self._isPresented = isPresented
-        self._taskTitle = State(initialValue: task.title)
-        self._hasTime = State(initialValue: task.assignedTime != nil)
-        self._selectedTime = State(initialValue: task.assignedTime ?? Date())
-        self._selectedDate = State(initialValue: task.assignedDate)
+    @State private var showingNameEditor = false
+    @State private var showingDescriptionEditor = false
+    @State private var showingDateEditor = false
+    @State private var showingTimeEditor = false
+    @State private var showingAddChecklistItem = false
+    @State private var newChecklistItemTitle = ""
+    
+    private var formattedDate: String {
+        let formatter = DateFormatter()
+        let calendar = Calendar.current
+        
+        if calendar.isDateInToday(task.assignedDate) {
+            return "Today"
+        } else if calendar.isDate(task.assignedDate, equalTo: calendar.date(byAdding: .day, value: 1, to: Date()) ?? Date(), toGranularity: .day) {
+            return "Tomorrow"
+        } else if calendar.isDate(task.assignedDate, equalTo: calendar.date(byAdding: .day, value: -1, to: Date()) ?? Date(), toGranularity: .day) {
+            return "Yesterday"
+        } else {
+            formatter.dateStyle = .medium
+            return formatter.string(from: task.assignedDate)
+        }
+    }
+    
+    private var formattedTime: String {
+        guard let time = task.assignedTime else { return "No time set" }
+        let formatter = DateFormatter()
+        formatter.timeStyle = .short
+        return formatter.string(from: time)
     }
     
     var body: some View {
         NavigationView {
-            VStack(spacing: 24) {
+            VStack(spacing: 0) {
+                // Item completion toggle at the top
+                HStack {
+                    Button(action: {
+                        taskManager.toggleTaskCompletion(task)
+                    }) {
+                        HStack(spacing: 12) {
+                            Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                                .font(.title2)
+                                .foregroundColor(task.isCompleted ? .green : .gray)
+                            
+                            Text(task.isCompleted ? "Completed" : "Mark as complete")
+                                .font(.system(size: 16))
+                                .foregroundColor(task.isCompleted ? .green : .primary)
+                        }
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    
+                    Spacer()
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 16)
+                .background(Color.white.opacity(0.5))
+                
+                ScrollView {
+                    VStack(spacing: 24) {
+                        // Item Name Section
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text("Name")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.secondary)
+                                    .textCase(.uppercase)
+                                    .tracking(1)
+                                
+                                Spacer()
+                                
+                                Button("Edit") {
+                                    showingNameEditor = true
+                                }
+                                .font(.system(size: 14))
+                                .foregroundColor(Color("Accent1"))
+                            }
+                            
+                            Text(task.title)
+                                .font(.system(size: 20))
+                                .fontWeight(.medium)
+                                .multilineTextAlignment(.leading)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        
+                        Divider()
+                        
+                        // Description Section
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text("Description")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.secondary)
+                                    .textCase(.uppercase)
+                                    .tracking(1)
+                                
+                                Spacer()
+                                
+                                Button("Edit") {
+                                    showingDescriptionEditor = true
+                                }
+                                .font(.system(size: 14))
+                                .foregroundColor(Color("Accent1"))
+                            }
+                            
+                            if task.description.isEmpty {
+                                Text("No description")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.secondary)
+                                    .italic()
+                            } else {
+                                Text(task.description)
+                                    .font(.system(size: 16))
+                                    .multilineTextAlignment(.leading)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                        }
+                        
+                        Divider()
+                        
+                        // Date Section
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text("Date")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.secondary)
+                                    .textCase(.uppercase)
+                                    .tracking(1)
+                                
+                                Spacer()
+                                
+                                Button("Edit") {
+                                    showingDateEditor = true
+                                }
+                                .font(.system(size: 14))
+                                .foregroundColor(Color("Accent1"))
+                            }
+                            
+                            HStack {
+                                Image(systemName: "calendar")
+                                    .foregroundColor(.secondary)
+                                
+                                Text(formattedDate)
+                                    .font(.system(size: 18))
+                                
+                                Spacer()
+                            }
+                        }
+                        
+                        Divider()
+                        
+                        // Time Section
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text("Time")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.secondary)
+                                    .textCase(.uppercase)
+                                    .tracking(1)
+                                
+                                Spacer()
+                                
+                                Button("Edit") {
+                                    showingTimeEditor = true
+                                }
+                                .font(.system(size: 14))
+                                .foregroundColor(Color("Accent1"))
+                            }
+                            
+                            HStack {
+                                Image(systemName: task.assignedTime != nil ? "clock" : "clock.badge.xmark")
+                                    .foregroundColor(.secondary)
+                                
+                                Text(formattedTime)
+                                    .font(.system(size: 18))
+                                    .foregroundColor(task.assignedTime != nil ? .primary : .secondary)
+                                
+                                Spacer()
+                            }
+                        }
+                        
+                        Divider()
+                        
+                        // Checklist Section
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack {
+                                Text("Checklist")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.secondary)
+                                    .textCase(.uppercase)
+                                    .tracking(1)
+                                
+                                Spacer()
+                                
+                                Button("Add Item") {
+                                    showingAddChecklistItem = true
+                                }
+                                .font(.system(size: 14))
+                                .foregroundColor(Color("Accent1"))
+                            }
+                            
+                            if task.checklist.isEmpty {
+                                Text("No checklist items")
+                                    .font(.system(size: 16))
+                                    .foregroundColor(.secondary)
+                                    .italic()
+                            } else {
+                                LazyVStack(spacing: 8) {
+                                    ForEach(task.checklist.sorted { $0.sortOrder < $1.sortOrder }) { item in
+                                        ChecklistItemRow(
+                                            item: item,
+                                            task: task,
+                                            taskManager: taskManager
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        
+                        Spacer(minLength: 40)
+                        
+                        // Delete button at bottom
+                        Button(action: {
+                            taskManager.deleteTask(task)
+                            isPresented = false
+                        }) {
+                            HStack {
+                                Image(systemName: "trash")
+                                Text("Delete Item")
+                            }
+                            .font(.system(size: 16))
+                            .foregroundColor(.red)
+                            .padding(.vertical, 12)
+                            .frame(maxWidth: .infinity)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12)
+                                    .stroke(Color.red.opacity(0.3), lineWidth: 1)
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 24)
+                }
+            }
+            .navigationTitle("Item Details")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") {
+                        isPresented = false
+                    }
+                }
+            }
+        }
+        .presentationDetents([.height(600), .large])
+        .sheet(isPresented: $showingNameEditor) {
+            EditNameView(
+                currentName: task.title,
+                onSave: { newName in
+                    updateTaskName(newName)
+                }
+            )
+        }
+        .sheet(isPresented: $showingDescriptionEditor) {
+            EditDescriptionView(
+                currentDescription: task.description,
+                onSave: { newDescription in
+                    updateTaskDescription(newDescription)
+                }
+            )
+        }
+        .sheet(isPresented: $showingDateEditor) {
+            EditDateView(
+                currentDate: task.assignedDate,
+                onSave: { newDate in
+                    updateTaskDate(newDate)
+                }
+            )
+        }
+        .sheet(isPresented: $showingTimeEditor) {
+            EditTimeView(
+                currentTime: task.assignedTime,
+                hasTime: task.assignedTime != nil,
+                onSave: { newTime, hasTimeValue in
+                    updateTaskTime(hasTimeValue ? newTime : nil)
+                }
+            )
+        }
+        .alert("Add Checklist Item", isPresented: $showingAddChecklistItem) {
+            TextField("Item title", text: $newChecklistItemTitle)
+            Button("Add") {
+                if !newChecklistItemTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    taskManager.addChecklistItem(task, title: newChecklistItemTitle)
+                    newChecklistItemTitle = ""
+                }
+            }
+            Button("Cancel", role: .cancel) {
+                newChecklistItemTitle = ""
+            }
+        } message: {
+            Text("Enter the title for the new checklist item")
+        }
+    }
+    
+    private func updateTaskName(_ newName: String) {
+        if let index = taskManager.tasks.firstIndex(where: { $0.id == task.id }) {
+            taskManager.tasks[index].title = newName
+        }
+    }
+    
+    private func updateTaskDescription(_ newDescription: String) {
+        if let index = taskManager.tasks.firstIndex(where: { $0.id == task.id }) {
+            taskManager.tasks[index].description = newDescription
+        }
+    }
+    
+    private func updateTaskDate(_ newDate: Date) {
+        if let index = taskManager.tasks.firstIndex(where: { $0.id == task.id }) {
+            taskManager.tasks[index].assignedDate = Calendar.current.startOfDay(for: newDate)
+        }
+    }
+    
+    private func updateTaskTime(_ newTime: Date?) {
+        if let index = taskManager.tasks.firstIndex(where: { $0.id == task.id }) {
+            taskManager.tasks[index].assignedTime = newTime
+        }
+    }
+}
+
+struct ChecklistItemRow: View {
+    let item: ChecklistItem
+    let task: Task
+    @ObservedObject var taskManager: TaskManager
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Button(action: {
+                taskManager.toggleChecklistItemCompletion(task, item: item)
+            }) {
+                Image(systemName: item.isCompleted ? "checkmark.square.fill" : "square")
+                    .foregroundColor(item.isCompleted ? .green : .gray)
+                    .font(.system(size: 16))
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            Text(item.title)
+                .font(.system(size: 16))
+                .strikethrough(item.isCompleted)
+                .foregroundColor(item.isCompleted ? .secondary : .primary)
+            
+            Spacer()
+            
+            Button(action: {
+                taskManager.deleteChecklistItem(task, item: item)
+            }) {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(.red.opacity(0.6))
+                    .font(.system(size: 16))
+            }
+            .buttonStyle(PlainButtonStyle())
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.white.opacity(0.3))
+        )
+    }
+}
+
+// Separate edit views for each field
+struct EditNameView: View {
+    let currentName: String
+    let onSave: (String) -> Void
+    @State private var editedName: String
+    @Environment(\.dismiss) private var dismiss
+    
+    init(currentName: String, onSave: @escaping (String) -> Void) {
+        self.currentName = currentName
+        self.onSave = onSave
+        self._editedName = State(initialValue: currentName)
+    }
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Task Title")
+                    Text("Item Name")
                         .font(.system(size: 16))
                         .fontWeight(.medium)
                     
-                    TextField("Enter task description", text: $taskTitle)
+                    TextField("Enter item name", text: $editedName)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                         .font(.system(size: 16))
                 }
                 
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Date")
-                        .font(.system(size: 16))
-                        .fontWeight(.medium)
-                    
-                    DatePicker("Date", selection: $selectedDate, displayedComponents: .date)
-                        .datePickerStyle(CompactDatePickerStyle())
+                Spacer()
+            }
+            .padding()
+            .navigationTitle("Edit Name")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
                 }
                 
-                VStack(alignment: .leading, spacing: 12) {
-                    Toggle("Assign Time", isOn: $hasTime)
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Save") {
+                        onSave(editedName)
+                        dismiss()
+                    }
+                    .disabled(editedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+        .presentationDetents([.height(200)])
+    }
+}
+
+struct EditDescriptionView: View {
+    let currentDescription: String
+    let onSave: (String) -> Void
+    @State private var editedDescription: String
+    @Environment(\.dismiss) private var dismiss
+    
+    init(currentDescription: String, onSave: @escaping (String) -> Void) {
+        self.currentDescription = currentDescription
+        self.onSave = onSave
+        self._editedDescription = State(initialValue: currentDescription)
+    }
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Description")
                         .font(.system(size: 16))
                         .fontWeight(.medium)
                     
-                    if hasTime {
-                        DatePicker("Time", selection: $selectedTime, displayedComponents: .hourAndMinute)
-                            .datePickerStyle(WheelDatePickerStyle())
-                            .labelsHidden()
-                    }
+                    TextField("Enter description", text: $editedDescription, axis: .vertical)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                        .font(.system(size: 16))
+                        .lineLimit(3...6)
                 }
                 
                 Spacer()
-                
-                HStack(spacing: 16) {
-                    Button("Delete") {
-                        taskManager.deleteTask(task)
-                        isPresented = false
-                    }
-                    .foregroundColor(.red)
-                    
-                    Spacer()
-                    
-                    Button("Cancel") {
-                        isPresented = false
-                    }
-                    .foregroundColor(.secondary)
-                    
-                    Button("Save") {
-                        updateTask()
-                        isPresented = false
-                    }
-                    .fontWeight(.semibold)
-                    .disabled(taskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-                .padding()
             }
             .padding()
-            .navigationTitle("Edit Task")
+            .navigationTitle("Edit Description")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Save") {
+                        onSave(editedDescription)
+                        dismiss()
+                    }
+                }
+            }
         }
-        .presentationDetents([.height(500)]) // Increased height for date picker
-        .presentationCornerRadius(50)
-        .presentationBackground(Color(red: 0.96, green: 0.94, blue: 0.89)) // Beige background
+        .presentationDetents([.height(250)])
+    }
+}
+
+struct EditDateView: View {
+    let currentDate: Date
+    let onSave: (Date) -> Void
+    @State private var editedDate: Date
+    @Environment(\.dismiss) private var dismiss
+    
+    init(currentDate: Date, onSave: @escaping (Date) -> Void) {
+        self.currentDate = currentDate
+        self.onSave = onSave
+        self._editedDate = State(initialValue: currentDate)
     }
     
-    private func updateTask() {
-        if let index = taskManager.tasks.firstIndex(where: { $0.id == task.id }) {
-            taskManager.tasks[index].title = taskTitle
-            taskManager.tasks[index].assignedDate = Calendar.current.startOfDay(for: selectedDate)
-            taskManager.tasks[index].assignedTime = hasTime ? selectedTime : nil
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
+                DatePicker("Date", selection: $editedDate, displayedComponents: .date)
+                    .datePickerStyle(WheelDatePickerStyle())
+                    .labelsHidden()
+                
+                Spacer()
+            }
+            .padding()
+            .navigationTitle("Edit Date")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Save") {
+                        onSave(editedDate)
+                        dismiss()
+                    }
+                }
+            }
         }
+        .presentationDetents([.height(300)])
+    }
+}
+
+struct EditTimeView: View {
+    let currentTime: Date?
+    let hasTime: Bool
+    let onSave: (Date, Bool) -> Void
+    @State private var editedTime: Date
+    @State private var hasTimeToggle: Bool
+    @Environment(\.dismiss) private var dismiss
+    
+    init(currentTime: Date?, hasTime: Bool, onSave: @escaping (Date, Bool) -> Void) {
+        self.currentTime = currentTime
+        self.hasTime = hasTime
+        self.onSave = onSave
+        self._editedTime = State(initialValue: currentTime ?? Date())
+        self._hasTimeToggle = State(initialValue: hasTime)
+    }
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 20) {
+                Toggle("Assign Time", isOn: $hasTimeToggle)
+                    .font(.system(size: 16))
+                    .fontWeight(.medium)
+                
+                if hasTimeToggle {
+                    DatePicker("Time", selection: $editedTime, displayedComponents: .hourAndMinute)
+                        .datePickerStyle(WheelDatePickerStyle())
+                        .labelsHidden()
+                }
+                
+                Spacer()
+            }
+            .padding()
+            .navigationTitle("Edit Time")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Save") {
+                        onSave(editedTime, hasTimeToggle)
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .presentationDetents([.height(300)])
     }
 }
 

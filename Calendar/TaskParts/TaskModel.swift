@@ -7,17 +7,27 @@
 
 import Foundation
 
-struct Task: Identifiable, Codable {
-    var id = UUID()  // Changed from 'let' to 'var'
+struct ChecklistItem: Identifiable, Codable {
+    var id = UUID()
     var title: String
     var isCompleted: Bool = false
-    var assignedDate: Date // Changed to store the full date
-    var assignedTime: Date? = nil // This will store just the time component
     var sortOrder: Int = 0
+}
+
+struct Task: Identifiable, Codable {
+    var id = UUID()
+    var title: String
+    var description: String = ""
+    var isCompleted: Bool = false
+    var assignedDate: Date
+    var assignedTime: Date? = nil
+    var sortOrder: Int = 0
+    var checklist: [ChecklistItem] = []
     
-    init(title: String, assignedDate: Date = Date(), assignedTime: Date? = nil, sortOrder: Int = 0) {
+    init(title: String, description: String = "", assignedDate: Date = Date(), assignedTime: Date? = nil, sortOrder: Int = 0) {
         self.title = title
-        self.assignedDate = Calendar.current.startOfDay(for: assignedDate) // Normalize to start of day
+        self.description = description
+        self.assignedDate = Calendar.current.startOfDay(for: assignedDate)
         self.assignedTime = assignedTime
         self.sortOrder = sortOrder
     }
@@ -36,18 +46,21 @@ class TaskManager: ObservableObject {
         self.tasks = [
             Task(
                 title: "Team Meeting",
+                description: "Weekly standup with the product team to discuss project progress and upcoming deadlines.",
                 assignedDate: today,
                 assignedTime: calendar.date(bySettingHour: 10, minute: 0, second: 0, of: today),
                 sortOrder: 0
             ),
             Task(
                 title: "Yoga Class",
+                description: "Beginner's yoga session at the local studio",
                 assignedDate: today,
                 assignedTime: calendar.date(bySettingHour: 16, minute: 0, second: 0, of: today),
                 sortOrder: 1
             ),
             Task(
                 title: "Groceries",
+                description: "Weekly grocery shopping",
                 assignedDate: tomorrow,
                 sortOrder: 2
             ),
@@ -58,11 +71,22 @@ class TaskManager: ObservableObject {
             ),
             Task(
                 title: "Doctor Appointment",
+                description: "Annual checkup with Dr. Smith",
                 assignedDate: dayAfterTomorrow,
                 assignedTime: calendar.date(bySettingHour: 14, minute: 30, second: 0, of: dayAfterTomorrow),
                 sortOrder: 4
             )
         ]
+        
+        // Add sample checklist to groceries task
+        if let groceryIndex = tasks.firstIndex(where: { $0.title == "Groceries" }) {
+            tasks[groceryIndex].checklist = [
+                ChecklistItem(title: "Milk", sortOrder: 0),
+                ChecklistItem(title: "Bread", sortOrder: 1),
+                ChecklistItem(title: "Eggs", sortOrder: 2),
+                ChecklistItem(title: "Apples", isCompleted: true, sortOrder: 3)
+            ]
+        }
     }
     
     func addTask(_ task: Task) {
@@ -88,9 +112,34 @@ class TaskManager: ObservableObject {
         }
     }
     
+    func addChecklistItem(_ task: Task, title: String) {
+        if let index = tasks.firstIndex(where: { $0.id == task.id }) {
+            let newItem = ChecklistItem(
+                title: title,
+                sortOrder: tasks[index].checklist.count
+            )
+            tasks[index].checklist.append(newItem)
+        }
+    }
+    
+    func deleteChecklistItem(_ task: Task, item: ChecklistItem) {
+        if let taskIndex = tasks.firstIndex(where: { $0.id == task.id }) {
+            tasks[taskIndex].checklist.removeAll { $0.id == item.id }
+            // Reorder remaining items
+            for (index, _) in tasks[taskIndex].checklist.enumerated() {
+                tasks[taskIndex].checklist[index].sortOrder = index
+            }
+        }
+    }
+    
+    func toggleChecklistItemCompletion(_ task: Task, item: ChecklistItem) {
+        if let taskIndex = tasks.firstIndex(where: { $0.id == task.id }),
+           let itemIndex = tasks[taskIndex].checklist.firstIndex(where: { $0.id == item.id }) {
+            tasks[taskIndex].checklist[itemIndex].isCompleted.toggle()
+        }
+    }
+    
     func moveTask(from source: IndexSet, to destination: Int) {
-        // Get the currently selected date to filter tasks properly
-        // This method will need to be updated to work with the current date context
         tasks.move(fromOffsets: source, toOffset: destination)
         reorderTasks()
     }
@@ -108,13 +157,12 @@ class TaskManager: ObservableObject {
         return tasks.filter { task in
             calendar.isDate(task.assignedDate, equalTo: targetDate, toGranularity: .day)
         }.sorted { task1, task2 in
-            // Sort by time first (if both have times), then by sort order
             if let time1 = task1.assignedTime, let time2 = task2.assignedTime {
                 return time1 < time2
             } else if task1.assignedTime != nil && task2.assignedTime == nil {
-                return true // Tasks with times come first
+                return true
             } else if task1.assignedTime == nil && task2.assignedTime != nil {
-                return false // Tasks without times come after
+                return false
             } else {
                 return task1.sortOrder < task2.sortOrder
             }
