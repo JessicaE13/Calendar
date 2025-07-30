@@ -43,10 +43,10 @@ struct CalendarDayView: View {
                 
                 Text(dayString)
                     .font(.system(size: 14))
-                    .fontWeight(.semibold)
-                    .monospacedDigit() // Forces consistent width for all digits
-                    .foregroundColor(.primary.opacity(0.75))
-                    .frame(width: 20) // Fixed width container for the text
+                    .fontWeight(.bold)
+                    .monospacedDigit()
+                    .foregroundColor(textColor)
+                    .frame(width: 20)
                     .multilineTextAlignment(.center)
             }
         }

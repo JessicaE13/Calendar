@@ -87,7 +87,7 @@ struct TaskRowView: View {
         }
         .buttonStyle(PlainButtonStyle())
         .padding(.vertical, 8)
-        .padding(.horizontal, 12)
+        // Removed horizontal padding since it's now handled at the list level
         .sheet(isPresented: $showingTaskEditor) {
             TaskEditorView(
                 task: task,

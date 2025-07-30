@@ -33,31 +33,67 @@ struct TaskListView: View {
     var body: some View {
         ZStack {
             VStack(alignment: .leading, spacing: 16) {
-                // Task List
+                // Task List with vertical line and dots
                 if tasksForSelectedDate.isEmpty {
-                    VStack(spacing: 8) {
-                        Image(systemName: "checkmark.square")
-                            .font(.title)
-                            .foregroundColor(.black.opacity(0.6))
+                    HStack(alignment: .top, spacing: 0) {
+                        // Vertical line for empty state
+                        Rectangle()
+                            .fill(Color("Accent1").opacity(0.4))
+                            .frame(width: 2)
+                            .padding(.leading, 20)
                         
-                        Text("No tasks for this day")
-                            .font(.system(size: 16))
-                            .foregroundColor(.secondary)
-                        
-                        Text("Tap + to add a task")
-                            .font(.system(size: 14))
-                            .foregroundColor(.secondary.opacity(0.8))
-                    }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 32)
-                } else {
-                    LazyVStack(spacing: 8) {
-                        ForEach(tasksForSelectedDate) { task in
-                            TaskRowView(taskManager: taskManager, task: task)
+                        // Empty state content
+                        VStack(spacing: 8) {
+                            Image(systemName: "checkmark.square")
+                                .font(.title)
+                                .foregroundColor(.black.opacity(0.6))
+                            
+                            Text("No tasks for this day")
+                                .font(.system(size: 16))
+                                .foregroundColor(.secondary)
+                            
+                            Text("Tap + to add a task")
+                                .font(.system(size: 14))
+                                .foregroundColor(.secondary.opacity(0.8))
                         }
-                        .onDelete(perform: deleteTasks)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 32)
+                        .padding(.leading, 16)
+                        .padding(.trailing, 20)
+                        
+                        Spacer()
                     }
-                    .padding(.horizontal)
+                } else {
+                    // Tasks with continuous timeline
+                    ZStack(alignment: .topLeading) {
+                        // Single continuous vertical line
+                        Rectangle()
+                            .fill(Color("Accent1").opacity(0.4))
+                            .frame(width: 2)
+                            .offset(x: 21) // 20 (padding) + 1 (center on line)
+                        
+                        // Tasks and dots
+                        LazyVStack(spacing: 8) {
+                            ForEach(Array(tasksForSelectedDate.enumerated()), id: \.element.id) { index, task in
+                                HStack(alignment: .top, spacing: 0) {
+                                    // Dot positioned over the line
+                                    Circle()
+                                        .fill(Color("Accent1"))
+                                        .frame(width: 8, height: 8)
+                                        .padding(.leading, 18) // 17 + 1 pixel to the right
+                                        .padding(.top, 22) // 12 + 10 pixels down
+                                    
+                                    // Task content
+                                    TaskRowView(taskManager: taskManager, task: task)
+                                        .padding(.leading, 4) // Remaining space to reach 12 total
+                                        .padding(.trailing, 20) // Right padding
+                                    
+                                    Spacer()
+                                }
+                            }
+                            .onDelete(perform: deleteTasks)
+                        }
+                    }
                 }
                 
                 Spacer()
