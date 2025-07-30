@@ -76,6 +76,7 @@ struct TaskRowView: View {
                         // Task without time - no background
                         Text(task.title)
                             .font(.system(size: 16))
+                            .padding(.vertical, 8)
                             .strikethrough(task.isCompleted)
                             .foregroundColor(task.isCompleted ? .secondary : .primary)
                             .multilineTextAlignment(.leading)

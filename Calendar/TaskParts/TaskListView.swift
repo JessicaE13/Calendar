@@ -33,9 +33,9 @@ struct TaskListView: View {
     var body: some View {
         ZStack {
             VStack(alignment: .leading, spacing: 16) {
-        
+                
                 if tasksForSelectedDate.isEmpty {
-                   
+                    
                     VStack(spacing: 8) {
                         Image(systemName: "checkmark.square")
                             .font(.title)
@@ -54,33 +54,37 @@ struct TaskListView: View {
                     .padding(.horizontal, 20)
                 } else {
                     // Tasks container with vertical line
-                    ZStack {
-                        // Vertical line with gradient fade
-                        Rectangle()
-                            .fill(
-                                LinearGradient(
-                                    gradient: Gradient(stops: [
-                                        .init(color: .clear, location: 0.0),
-                                        .init(color: .primary.opacity(0.3), location: 0.1),
-                                        .init(color: .primary.opacity(0.3), location: 0.9),
-                                        .init(color: .clear, location: 1.0)
-                                    ]),
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                            )
-                            .frame(width: 2)
-                            .padding(-130) // Moved closer to the list
-                        
-                        // Tasks list
-                        LazyVStack(spacing: 8) {
+                    HStack {
+                        //                        // Vertical line with gradient fade
+                        //                        Rectangle()
+                        //                            .fill(
+                        //                                LinearGradient(
+                        //                                    gradient: Gradient(stops: [
+                        //                                        .init(color: .clear, location: 0.0),
+                        //                                        .init(color: .primary.opacity(0.3), location: 0.1),
+                        //                                        .init(color: .primary.opacity(0.3), location: 0.9),
+                        //                                        .init(color: .clear, location: 1.0)
+                        //                                    ]),
+                        //                                    startPoint: .top,
+                        //                                    endPoint: .bottom
+                        //                                )
+                        //                            )
+                        //                            .frame(width: 2)
+                        //                            .padding()
+                        //
+                        LazyVStack(spacing: 4) {
                             ForEach(Array(tasksForSelectedDate.enumerated()), id: \.element.id) { index, task in
                                 HStack(alignment: .center, spacing: 28) {
-                                  
-                                    Circle()
-                                        .fill(.primary.opacity(0.7))
-                                        .frame(width: 8, height: 8)
-                                    
+                                    ZStack {
+                                        Circle()
+                                            .fill(.primary.opacity(0.7))
+                                            .frame(width: 8, height: 8)
+                                      
+                                        Rectangle()
+                                            .fill(.primary.opacity(0.3))
+                                            .frame(width: 2)
+                                            
+                                    }
                                     TaskRowView(taskManager: taskManager, task: task)
                                     
                                     Spacer()
