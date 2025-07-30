@@ -61,14 +61,15 @@ struct CalendarGridView: View {
             HStack {
                 ForEach(dayHeaders, id: \.id) { dayHeader in
                     Text(dayHeader.letter)
-                        .font(.system(size: 16))
+                        .font(.system(size: 14))
                         .textCase(.uppercase)
+                        .fontWeight(.bold)
                         .tracking(1.0)
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity)
                 }
             }
-            .padding(.bottom, 8)
+            .padding(.bottom, 4)
             
             
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 1) {
@@ -83,13 +84,13 @@ struct CalendarGridView: View {
                         } else {
                             // Empty space for dates not in current month
                             Color.clear
-                                .frame(width: 40, height: 40)
+                                .frame(width: 36, height: 36)
                         }
                     }
                 }
             }
         }
-        .padding(.horizontal, 36)
+        .padding(.horizontal, 64)
     }
 }
 

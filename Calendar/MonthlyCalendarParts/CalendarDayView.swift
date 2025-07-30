@@ -35,14 +35,15 @@ struct CalendarDayView: View {
             ZStack {
                 Circle()
                     .fill(backgroundColor)
-                    .frame(width: 36, height: 36)
+                    .frame(width: 32, height: 32)
                     .overlay(
                         Circle()
                             .stroke(Color("Accent1"), lineWidth: isToday ? 1.0 : 0)
                     )
                 
                 Text(dayString)
-                    .font(.system(size: 16))
+                    .font(.system(size: 14))
+                    .fontWeight(.semibold)
                     .monospacedDigit() // Forces consistent width for all digits
                     .foregroundColor(.primary.opacity(0.75))
                     .frame(width: 20) // Fixed width container for the text
@@ -53,7 +54,7 @@ struct CalendarDayView: View {
     }
     
     private var textColor: Color {
-        return isSelected ? .primary :  Color(UIColor.systemGray)
+        return isSelected ? .white :  Color(UIColor.systemGray)
     }
     
     private var backgroundColor: Color {
