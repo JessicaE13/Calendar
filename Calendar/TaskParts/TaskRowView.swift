@@ -12,25 +12,25 @@ struct TaskRowView: View {
     let task: Task
     @State private var showingTaskEditor = false
     
-    private var timeString: String {
-        guard let time = task.assignedTime else { return "" }
+    private var timeComponents: (time: String, period: String) {
+        guard let time = task.assignedTime else { return ("", "") }
         let formatter = DateFormatter()
         let calendar = Calendar.current
         let minutes = calendar.component(.minute, from: time)
         
+        let timeString: String
         if minutes == 0 {
             formatter.dateFormat = "h" // Just the hour
-            let hour = formatter.string(from: time)
-            formatter.dateFormat = "a" // Just AM/PM
-            let period = formatter.string(from: time).lowercased()
-            return "\(hour) \(period)" // Regular space between hour and am/pm
+            timeString = formatter.string(from: time)
         } else {
             formatter.dateFormat = "h:mm" // Hour and minutes
-            let hourMin = formatter.string(from: time)
-            formatter.dateFormat = "a" // Just AM/PM
-            let period = formatter.string(from: time).lowercased()
-            return "\(hourMin) \(period)" // Regular space between time and am/pm
+            timeString = formatter.string(from: time)
         }
+        
+        formatter.dateFormat = "a" // Just AM/PM
+        let period = formatter.string(from: time).uppercased()
+        
+        return (timeString, period)
     }
     
     var body: some View {
@@ -54,17 +54,24 @@ struct TaskRowView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     if let _ = task.assignedTime {
                         // Task with time - add background with rounded corners
-                        Text("\(timeString) \(task.title)")
-                            .font(.system(size: 16))
-                            .strikethrough(task.isCompleted)
-                            .foregroundColor(task.isCompleted ? .secondary : .primary)
-                            .multilineTextAlignment(.leading)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color("Accent1").opacity(0.3))
-                            )
+                        HStack(spacing: 0) {
+                            Text(timeComponents.time)
+                                .font(.system(size: 16))
+                            Text(timeComponents.period)
+                                .font(.system(size: 10))
+                                .baselineOffset(-5) // Align with the bottom of the numbers
+                            Text(" \(task.title)")
+                                .font(.system(size: 16))
+                        }
+                        .strikethrough(task.isCompleted)
+                        .foregroundColor(task.isCompleted ? .secondary : .primary)
+                        .multilineTextAlignment(.leading)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color("Accent1").opacity(0.3))
+                        )
                     } else {
                         // Task without time - no background
                         Text(task.title)
@@ -115,17 +122,17 @@ struct TaskEditorView: View {
             VStack(spacing: 24) {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Task Title")
-                        .font(.custom("Mulish", size: 16))
+                        .font(.system(size: 16))
                         .fontWeight(.medium)
                     
                     TextField("Enter task description", text: $taskTitle)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .font(.custom("Mulish", size: 16))
+                        .font(.system(size: 16))
                 }
                 
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Date")
-                        .font(.custom("Mulish", size: 16))
+                        .font(.system(size: 16))
                         .fontWeight(.medium)
                     
                     DatePicker("Date", selection: $selectedDate, displayedComponents: .date)
@@ -134,7 +141,7 @@ struct TaskEditorView: View {
                 
                 VStack(alignment: .leading, spacing: 12) {
                     Toggle("Assign Time", isOn: $hasTime)
-                        .font(.custom("Mulish", size: 16))
+                        .font(.system(size: 16))
                         .fontWeight(.medium)
                     
                     if hasTime {
