@@ -75,7 +75,7 @@ struct TaskListView: View {
                         Image(systemName: "plus")
                             .font(.title2)
                             .fontWeight(.semibold)
-                            .foregroundColor(.primary)
+                            .foregroundColor(.white)
                             .frame(width: 56, height: 56)
                             .background(
                                 Circle()
