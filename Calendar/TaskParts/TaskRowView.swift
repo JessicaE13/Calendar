@@ -63,7 +63,7 @@ struct TaskRowView: View {
                             .padding(.vertical, 8)
                             .background(
                                 RoundedRectangle(cornerRadius: 12)
-                                    .fill(Color("Accent1").opacity(0.2))
+                                    .fill(Color("Accent1").opacity(0.3))
                             )
                     } else {
                         // Task without time - no background

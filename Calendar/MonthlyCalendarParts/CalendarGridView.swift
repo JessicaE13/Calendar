@@ -61,9 +61,8 @@ struct CalendarGridView: View {
             HStack {
                 ForEach(dayHeaders, id: \.id) { dayHeader in
                     Text(dayHeader.letter)
-                        .font(.custom("Mulish", size: 17))
+                        .font(.system(size: 16))
                         .textCase(.uppercase)
-                        .fontWeight(.ultraLight)
                         .tracking(1.0)
                         .foregroundColor(.secondary)
                         .frame(maxWidth: .infinity)
