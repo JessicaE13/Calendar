@@ -59,27 +59,32 @@ struct TaskListView: View {
                         LazyVStack(spacing: 4) {
                             ZStack (alignment: .leading) {
                                 Rectangle()
-                                    .fill(.primary.opacity(0.3))
+                                    .fill(.gray)
                                     .frame(width: 2)
-                                    .padding(.leading, 56)
+                                    .padding(.leading, 3)
                                 VStack {
                                     ForEach(Array(tasksForSelectedDate.enumerated()), id: \.element.id) { index, task in
                                         HStack(alignment: .center, spacing: 28) {
                                             Circle()
-                                                .fill(.primary.opacity(0.7))
+                                                .fill(.gray)
                                                 .frame(width: 8, height: 8)
                                             
                                             TaskRowView(taskManager: taskManager, task: task)
                                             
                                             Spacer()
                                         }
-                                        .padding(.horizontal, 20)
-                                        .padding(.leading, 48)
+                            
+                       
                                     }
                                     .onDelete(perform: deleteTasks)
+                       
                                 }
+                       
                             }
+                            .padding(.leading, 48)
+                       
                         }
+                       
                     }
                 }
                 

@@ -20,9 +20,11 @@ struct ContentView: View {
                     Spacer()
                     
                     Text(monthYearString(from: currentMonth))
-                        .font(.title2)
+                 
+                        .font(.system(.title, design: .serif))
                         .fontWeight(.bold)
                         .multilineTextAlignment(.leading)
+         
                     
                     Spacer()
                     
@@ -47,7 +49,7 @@ struct ContentView: View {
                 
                 HStack {
                     Text(selectedDateString())
-                        .font(.title3)
+                        .font(.system(.title3, design: .serif))
                         .fontWeight(.bold)
                         .padding(.horizontal)
                         .padding(.vertical, 8)
