@@ -14,7 +14,7 @@ class CloudKitManager: ObservableObject {
     static let shared = CloudKitManager()
     
     private let container = CKContainer.default()
-    let privateDatabase: CKDatabase  // Make this accessible for subscriptions
+    let privateDatabase: CKDatabase 
     
     @Published var accountStatus: CKAccountStatus = .couldNotDetermine
     @Published var isAccountAvailable = false
@@ -24,6 +24,17 @@ class CloudKitManager: ObservableObject {
     init() {
         self.privateDatabase = container.privateCloudDatabase
         checkAccountStatus()
+        
+         
+            // Debug info - add these lines
+            print("=== CloudKit Debug Info ===")
+            print("CloudKit Container ID: \(container.containerIdentifier ?? "Unknown")")
+            print("App Bundle ID: \(Bundle.main.bundleIdentifier ?? "Unknown")")
+            print("Expected format: iCloud.{bundleID}")
+            print("========================")
+            
+            checkAccountStatus()
+        
     }
     
     // MARK: - Account Status
@@ -188,3 +199,4 @@ enum CloudKitError: LocalizedError {
         }
     }
 }
+
