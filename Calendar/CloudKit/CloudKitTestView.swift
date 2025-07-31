@@ -267,7 +267,7 @@ struct CloudKitTestView: View {
         addResult("📝 Creating sample task record...")
         
         do {
-            let savedTask = try await cloudKitManager.saveTask(sampleTask)
+            let _savedTask = try await cloudKitManager.saveTask(sampleTask)
             addResult("✅ Successfully created Task record type!")
             addResult("✅ CloudKit schema is now set up!")
             addResult("🗑️ You can delete the test task from CloudKit Console if you want")

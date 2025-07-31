@@ -2,11 +2,14 @@
 //  TaskModel.swift
 //  Calendar
 //
-//  Updated with CloudKit support - Fixed version
+//  Clean final version - no compilation errors
 //
 
 import Foundation
 import CloudKit
+import Combine
+
+// MARK: - ChecklistItem Model
 
 struct ChecklistItem: Identifiable, Codable {
     var id = UUID()
@@ -22,6 +25,8 @@ struct ChecklistItem: Identifiable, Codable {
         // recordID and parentTaskRecordID are not encoded/decoded
     }
 }
+
+// MARK: - Task Model
 
 struct Task: Identifiable, Codable {
     var id = UUID()
@@ -51,7 +56,8 @@ struct Task: Identifiable, Codable {
     }
 }
 
-// CloudKit extensions
+// MARK: - CloudKit Extensions
+
 extension Task {
     // Convert to CloudKit record
     func toCKRecord() -> CKRecord {
@@ -64,6 +70,17 @@ extension Task {
         record["sortOrder"] = sortOrder
         record["lastModified"] = lastModified
         record["userID"] = id.uuidString
+        
+        // Convert checklist to JSON data for storage
+        if !checklist.isEmpty {
+            do {
+                let checklistData = try JSONEncoder().encode(checklist)
+                record["checklist"] = checklistData
+            } catch {
+                print("Failed to encode checklist: \(error)")
+            }
+        }
+        
         return record
     }
     
@@ -90,6 +107,16 @@ extension Task {
         if let userIDString = record["userID"] as? String,
            let userID = UUID(uuidString: userIDString) {
             task.id = userID
+        }
+        
+        // Decode checklist from JSON data
+        if let checklistData = record["checklist"] as? Data {
+            do {
+                task.checklist = try JSONDecoder().decode([ChecklistItem].self, from: checklistData)
+            } catch {
+                print("Failed to decode checklist: \(error)")
+                task.checklist = []
+            }
         }
         
         return task
@@ -138,21 +165,35 @@ extension ChecklistItem {
     }
 }
 
+// MARK: - TaskManager Class
+@MainActor
 class TaskManager: ObservableObject {
     @Published var tasks: [Task] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var showingError = false
+    @Published var lastSyncDate: Date?
     
-    private let cloudKitManager = CloudKitManager.shared
+    private var cancellables = Set<AnyCancellable>()
     
     init() {
-        loadSampleTasks()
         setupCloudKitObservers()
+        loadSampleTasks()
+    }
+    
+    // Access CloudKit manager - standard singleton pattern
+    private var cloudKitManager: CloudKitManager {
+        CloudKitManager.shared
     }
     
     private func setupCloudKitObservers() {
-        // We'll implement CloudKit sync after fixing the basic structure
+        // Listen for CloudKit data changes
+        NotificationCenter.default.publisher(for: .cloudKitDataChanged)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.syncFromCloudKit()
+            }
+            .store(in: &cancellables)
     }
     
     private func loadSampleTasks() {
@@ -161,7 +202,9 @@ class TaskManager: ObservableObject {
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) ?? today
         let dayAfterTomorrow = calendar.date(byAdding: .day, value: 2, to: today) ?? today
         
-        // Sample tasks for demonstration with different dates
+        // Only load sample tasks if we have no tasks yet
+        guard tasks.isEmpty else { return }
+        
         self.tasks = [
             Task(
                 title: "Team Meeting",
@@ -208,26 +251,159 @@ class TaskManager: ObservableObject {
         }
     }
     
+    // MARK: - CloudKit Sync Methods
+    
+    private func syncFromCloudKit() {
+        _Concurrency.Task { [weak self] in
+            guard let self = self else { return }
+            
+            // Check if CloudKit is available
+            let isAvailable = await self.cloudKitManager.isAccountAvailable
+            guard isAvailable else { return }
+            
+            do {
+                let cloudTasks = try await self.cloudKitManager.fetchAllTasks()
+                await MainActor.run {
+                    self.mergeTasks(cloudTasks)
+                    self.lastSyncDate = Date()
+                }
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = error.localizedDescription
+                    self.showingError = true
+                }
+            }
+        }
+    }
+    
+    private func mergeTasks(_ cloudTasks: [Task]) {
+        // Simple merge strategy: use cloud version if it's newer, otherwise keep local
+        var mergedTasks: [Task] = []
+        
+        // Create dictionaries for quick lookup
+        var localTasksDict = Dictionary(uniqueKeysWithValues: tasks.map { ($0.id, $0) })
+        
+        // Add all cloud tasks (they're either new or updates)
+        for cloudTask in cloudTasks {
+            if let localTask = localTasksDict[cloudTask.id] {
+                // Use the version with the latest modification date
+                mergedTasks.append(cloudTask.lastModified > localTask.lastModified ? cloudTask : localTask)
+                localTasksDict.removeValue(forKey: cloudTask.id)
+            } else {
+                // New task from cloud
+                mergedTasks.append(cloudTask)
+            }
+        }
+        
+        // Add remaining local tasks (not in cloud yet)
+        for (_, localTask) in localTasksDict {
+            mergedTasks.append(localTask)
+        }
+        
+        self.tasks = mergedTasks.sorted { $0.sortOrder < $1.sortOrder }
+    }
+    
+    // MARK: - Task Management Methods
+    
     func addTask(_ task: Task) {
         var newTask = task
         newTask.sortOrder = tasks.count
+        newTask.lastModified = Date()
+        
+        // Add locally first for immediate UI update
         tasks.append(newTask)
+        
+        // Sync to CloudKit in background
+        _Concurrency.Task { [weak self] in
+            guard let self = self else { return }
+            let taskToSave = newTask // Capture the task value
+            
+            do {
+                let savedTask = try await self.cloudKitManager.saveTask(taskToSave)
+                await MainActor.run {
+                    if let index = self.tasks.firstIndex(where: { $0.id == taskToSave.id }) {
+                        self.tasks[index] = savedTask
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = "Failed to sync task: \(error.localizedDescription)"
+                    self.showingError = true
+                }
+            }
+        }
     }
     
     func deleteTask(_ task: Task) {
+        // Remove locally first
         tasks.removeAll { $0.id == task.id }
         reorderTasks()
+        
+        // Delete from CloudKit in background
+        if let recordID = task.recordID {
+            _Concurrency.Task { [weak self] in
+                guard let self = self else { return }
+                
+                do {
+                    try await self.cloudKitManager.deleteTask(recordID: recordID)
+                } catch {
+                    await MainActor.run {
+                        self.errorMessage = "Failed to delete from iCloud: \(error.localizedDescription)"
+                        self.showingError = true
+                    }
+                }
+            }
+        }
     }
     
     func toggleTaskCompletion(_ task: Task) {
         if let index = tasks.firstIndex(where: { $0.id == task.id }) {
             tasks[index].isCompleted.toggle()
+            tasks[index].lastModified = Date()
+            
+            let updatedTask = tasks[index]
+            
+            // Sync to CloudKit
+            _Concurrency.Task { [weak self] in
+                guard let self = self else { return }
+                
+                do {
+                    let savedTask = try await self.cloudKitManager.saveTask(updatedTask)
+                    await MainActor.run {
+                        if let idx = self.tasks.firstIndex(where: { $0.id == updatedTask.id }) {
+                            self.tasks[idx] = savedTask
+                        }
+                    }
+                } catch {
+                    await MainActor.run {
+                        self.errorMessage = "Failed to sync task completion: \(error.localizedDescription)"
+                        self.showingError = true
+                    }
+                }
+            }
         }
     }
     
     func updateTaskTime(_ task: Task, time: Date?) {
         if let index = tasks.firstIndex(where: { $0.id == task.id }) {
             tasks[index].assignedTime = time
+            tasks[index].lastModified = Date()
+            
+            let updatedTask = tasks[index]
+            
+            // Sync to CloudKit
+            _Concurrency.Task { [weak self] in
+                guard let self = self else { return }
+                
+                do {
+                    _ = try await self.cloudKitManager.saveTask(updatedTask)
+                } catch {
+                    await MainActor.run {
+                        self.errorMessage = "Failed to sync task time: \(error.localizedDescription)"
+                        self.showingError = true
+                    }
+                }
+            }
         }
     }
     
@@ -238,15 +414,50 @@ class TaskManager: ObservableObject {
                 sortOrder: tasks[index].checklist.count
             )
             tasks[index].checklist.append(newItem)
+            tasks[index].lastModified = Date()
+            
+            let updatedTask = tasks[index]
+            
+            // Sync to CloudKit
+            _Concurrency.Task { [weak self] in
+                guard let self = self else { return }
+                
+                do {
+                    _ = try await self.cloudKitManager.saveTask(updatedTask)
+                } catch {
+                    await MainActor.run {
+                        self.errorMessage = "Failed to sync checklist: \(error.localizedDescription)"
+                        self.showingError = true
+                    }
+                }
+            }
         }
     }
     
     func deleteChecklistItem(_ task: Task, item: ChecklistItem) {
         if let taskIndex = tasks.firstIndex(where: { $0.id == task.id }) {
             tasks[taskIndex].checklist.removeAll { $0.id == item.id }
+            tasks[taskIndex].lastModified = Date()
+            
             // Reorder remaining items
             for (index, _) in tasks[taskIndex].checklist.enumerated() {
                 tasks[taskIndex].checklist[index].sortOrder = index
+            }
+            
+            let updatedTask = tasks[taskIndex]
+            
+            // Sync to CloudKit
+            _Concurrency.Task { [weak self] in
+                guard let self = self else { return }
+                
+                do {
+                    _ = try await self.cloudKitManager.saveTask(updatedTask)
+                } catch {
+                    await MainActor.run {
+                        self.errorMessage = "Failed to sync checklist: \(error.localizedDescription)"
+                        self.showingError = true
+                    }
+                }
             }
         }
     }
@@ -255,17 +466,49 @@ class TaskManager: ObservableObject {
         if let taskIndex = tasks.firstIndex(where: { $0.id == task.id }),
            let itemIndex = tasks[taskIndex].checklist.firstIndex(where: { $0.id == item.id }) {
             tasks[taskIndex].checklist[itemIndex].isCompleted.toggle()
+            tasks[taskIndex].lastModified = Date()
+            
+            let updatedTask = tasks[taskIndex]
+            
+            // Sync to CloudKit
+            _Concurrency.Task { [weak self] in
+                guard let self = self else { return }
+                
+                do {
+                    _ = try await self.cloudKitManager.saveTask(updatedTask)
+                } catch {
+                    await MainActor.run {
+                        self.errorMessage = "Failed to sync checklist: \(error.localizedDescription)"
+                        self.showingError = true
+                    }
+                }
+            }
         }
     }
     
     func moveTask(from source: IndexSet, to destination: Int) {
         tasks.move(fromOffsets: source, toOffset: destination)
         reorderTasks()
+        
+        // Sync all affected tasks to CloudKit
+        _Concurrency.Task { [weak self] in
+            guard let self = self else { return }
+            let tasksToSync = await MainActor.run { self.tasks }
+            
+            for task in tasksToSync {
+                do {
+                    _ = try await self.cloudKitManager.saveTask(task)
+                } catch {
+                    print("Failed to sync task order: \(error)")
+                }
+            }
+        }
     }
     
     private func reorderTasks() {
         for (index, _) in tasks.enumerated() {
             tasks[index].sortOrder = index
+            tasks[index].lastModified = Date()
         }
     }
     
@@ -284,6 +527,83 @@ class TaskManager: ObservableObject {
                 return false
             } else {
                 return task1.sortOrder < task2.sortOrder
+            }
+        }
+    }
+    
+    // MARK: - Manual Sync
+    
+    func forceSyncWithCloudKit() {
+        syncFromCloudKit()
+    }
+    
+    // MARK: - Task Update Methods for ItemDetailsView
+    
+    func updateTaskName(_ task: Task, newName: String) {
+        if let index = tasks.firstIndex(where: { $0.id == task.id }) {
+            tasks[index].title = newName
+            tasks[index].lastModified = Date()
+            
+            let updatedTask = tasks[index]
+            
+            // Sync to CloudKit
+            _Concurrency.Task { [weak self] in
+                guard let self = self else { return }
+                
+                do {
+                    _ = try await self.cloudKitManager.saveTask(updatedTask)
+                } catch {
+                    await MainActor.run {
+                        self.errorMessage = "Failed to sync task name: \(error.localizedDescription)"
+                        self.showingError = true
+                    }
+                }
+            }
+        }
+    }
+    
+    func updateTaskDescription(_ task: Task, newDescription: String) {
+        if let index = tasks.firstIndex(where: { $0.id == task.id }) {
+            tasks[index].description = newDescription
+            tasks[index].lastModified = Date()
+            
+            let updatedTask = tasks[index]
+            
+            // Sync to CloudKit
+            _Concurrency.Task { [weak self] in
+                guard let self = self else { return }
+                
+                do {
+                    _ = try await self.cloudKitManager.saveTask(updatedTask)
+                } catch {
+                    await MainActor.run {
+                        self.errorMessage = "Failed to sync task description: \(error.localizedDescription)"
+                        self.showingError = true
+                    }
+                }
+            }
+        }
+    }
+    
+    func updateTaskDate(_ task: Task, newDate: Date) {
+        if let index = tasks.firstIndex(where: { $0.id == task.id }) {
+            tasks[index].assignedDate = Calendar.current.startOfDay(for: newDate)
+            tasks[index].lastModified = Date()
+            
+            let updatedTask = tasks[index]
+            
+            // Sync to CloudKit
+            _Concurrency.Task { [weak self] in
+                guard let self = self else { return }
+                
+                do {
+                    _ = try await self.cloudKitManager.saveTask(updatedTask)
+                } catch {
+                    await MainActor.run {
+                        self.errorMessage = "Failed to sync task date: \(error.localizedDescription)"
+                        self.showingError = true
+                    }
+                }
             }
         }
     }

@@ -6,19 +6,36 @@ struct ContentView: View {
     @State private var calendarOffset: CGFloat = 0
     @State private var isAnimatingMonthChange = false
     @StateObject private var taskManager = TaskManager()
+    @StateObject private var cloudKitManager = CloudKitManager.shared
     @State private var showingCloudKitTest = false
     
     var body: some View {
-        
         ZStack {
             BackgroundView()
-            
             
             VStack(spacing: 0) {
                 
                 HStack {
+                    // CloudKit Status Indicator
+                    HStack(spacing: 4) {
+                        Image(systemName: cloudKitStatusIcon)
+                            .foregroundColor(cloudKitStatusColor)
+                            .font(.caption)
+                        
+                        if taskManager.isLoading {
+                            ProgressView()
+                                .scaleEffect(0.6)
+                        }
+                    }
+                    .onTapGesture {
+                        if cloudKitManager.isAccountAvailable {
+                            taskManager.forceSyncWithCloudKit()
+                        } else {
+                            showingCloudKitTest = true
+                        }
+                    }
                     
-                    // CloudKit Test Button (temporary)
+                    // CloudKit Test Button (keep for debugging)
                     Button("CloudKit Test") {
                         showingCloudKitTest = true
                     }
@@ -31,14 +48,11 @@ struct ContentView: View {
                     Spacer()
                     
                     Text(monthYearString(from: currentMonth))
-                 
                         .font(.system(.title, design: .serif))
                         .fontWeight(.bold)
                         .multilineTextAlignment(.leading)
-         
                     
                     Spacer()
-                    
                 }
                 .padding()
                 
@@ -57,7 +71,6 @@ struct ContentView: View {
                         }
                 )
                 
-                
                 HStack {
                     Text(selectedDateString())
                         .font(.system(.title3, design: .serif))
@@ -66,18 +79,95 @@ struct ContentView: View {
                         .padding(.vertical, 8)
                     
                     Spacer()
+                    
+                    // Last sync indicator
+                    if let lastSync = taskManager.lastSyncDate {
+                        Text("Synced \(timeAgoString(from: lastSync))")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal)
+                    }
                 }
                 .padding()
                 
                 TaskListView(taskManager: taskManager, selectedDate: selectedDate)
-                         .frame(maxHeight: .infinity)
-                
+                    .frame(maxHeight: .infinity)
             }
         }
         .sheet(isPresented: $showingCloudKitTest) {
             CloudKitTestView()
         }
+        .alert("Sync Error", isPresented: $taskManager.showingError) {
+            Button("OK") {
+                taskManager.showingError = false
+            }
+            Button("Retry") {
+                taskManager.forceSyncWithCloudKit()
+                taskManager.showingError = false
+            }
+        } message: {
+            Text(taskManager.errorMessage ?? "An unknown error occurred")
+        }
+        .onAppear {
+            // Check CloudKit status when app appears
+            cloudKitManager.checkAccountStatus()
+        }
     }
+    
+    // MARK: - CloudKit Status Helpers
+    
+    private var cloudKitStatusIcon: String {
+        if taskManager.isLoading {
+            return "arrow.clockwise"
+        }
+        
+        switch cloudKitManager.accountStatus {
+        case .available:
+            return "icloud"
+        case .noAccount:
+            return "icloud.slash"
+        case .restricted:
+            return "exclamationmark.icloud"
+        default:
+            return "questionmark.circle"
+        }
+    }
+    
+    private var cloudKitStatusColor: Color {
+        if taskManager.isLoading {
+            return .blue
+        }
+        
+        switch cloudKitManager.accountStatus {
+        case .available:
+            return .green
+        case .noAccount:
+            return .red
+        case .restricted:
+            return .orange
+        default:
+            return .gray
+        }
+    }
+    
+    private func timeAgoString(from date: Date) -> String {
+        let interval = Date().timeIntervalSince(date)
+        
+        if interval < 60 {
+            return "now"
+        } else if interval < 3600 {
+            let minutes = Int(interval / 60)
+            return "\(minutes)m ago"
+        } else if interval < 86400 {
+            let hours = Int(interval / 3600)
+            return "\(hours)h ago"
+        } else {
+            let days = Int(interval / 86400)
+            return "\(days)d ago"
+        }
+    }
+    
+    // MARK: - Existing Methods
     
     private func previousMonth() {
         currentMonth = Calendar.current.date(byAdding: .month, value: -1, to: currentMonth) ?? currentMonth
@@ -134,11 +224,7 @@ struct ContentView: View {
             }
         }
     }
-    
 }
-
-
-
 
 #Preview {
     ContentView()

@@ -2,7 +2,7 @@
 //  CloudKitManager.swift
 //  Calendar
 //
-//  Simple CloudKit sync manager
+//  Enhanced CloudKit sync manager with proper database access
 //
 
 import Foundation
@@ -14,7 +14,7 @@ class CloudKitManager: ObservableObject {
     static let shared = CloudKitManager()
     
     private let container = CKContainer.default()
-    private let privateDatabase: CKDatabase
+    let privateDatabase: CKDatabase  // Make this accessible for subscriptions
     
     @Published var accountStatus: CKAccountStatus = .couldNotDetermine
     @Published var isAccountAvailable = false
@@ -37,6 +37,8 @@ class CloudKitManager: ObservableObject {
                 if let error = error {
                     print("CloudKit account error: \(error.localizedDescription)")
                 }
+                
+                print("CloudKit account status: \(status)")
             }
         }
     }
@@ -53,11 +55,15 @@ class CloudKitManager: ObservableObject {
         
         let record = updatedTask.toCKRecord()
         
+        print("Saving task to CloudKit: \(task.title)")
+        
         do {
             let savedRecord = try await privateDatabase.save(record)
             updatedTask.recordID = savedRecord.recordID
+            print("Successfully saved task: \(task.title)")
             return updatedTask
         } catch {
+            print("Failed to save task: \(error)")
             throw CloudKitError.saveFailed(error)
         }
     }
@@ -80,6 +86,8 @@ class CloudKitManager: ObservableObject {
         let query = CKQuery(recordType: "Task", predicate: NSPredicate(value: true))
         query.sortDescriptors = [NSSortDescriptor(key: "lastModified", ascending: false)]
         
+        print("Fetching tasks from CloudKit...")
+        
         do {
             let (matchResults, _) = try await privateDatabase.records(matching: query)
             
@@ -89,14 +97,25 @@ class CloudKitManager: ObservableObject {
                 case .success(let record):
                     if let task = Task.fromCKRecord(record) {
                         tasks.append(task)
+                        print("Fetched task: \(task.title)")
                     }
                 case .failure(let error):
                     print("Failed to fetch task record: \(error)")
                 }
             }
             
+            print("Successfully fetched \(tasks.count) tasks from CloudKit")
             return tasks
+        } catch let error as CKError {
+            print("CloudKit fetch error: \(error)")
+            // Handle specific CloudKit errors
+            if error.code == .unknownItem {
+                print("Schema not set up yet - returning empty array")
+                return []
+            }
+            throw CloudKitError.fetchFailed(error)
         } catch {
+            print("General fetch error: \(error)")
             throw CloudKitError.fetchFailed(error)
         }
     }
@@ -108,10 +127,42 @@ class CloudKitManager: ObservableObject {
             throw CloudKitError.accountNotAvailable
         }
         
+        print("Deleting task from CloudKit: \(recordID)")
+        
         do {
             _ = try await privateDatabase.deleteRecord(withID: recordID)
+            print("Successfully deleted task from CloudKit")
         } catch {
+            print("Failed to delete task: \(error)")
             throw CloudKitError.deleteFailed(error)
+        }
+    }
+    
+    // MARK: - Schema Setup Helper
+    
+    func setupSchema() async throws {
+        print("Setting up CloudKit schema...")
+        
+        // Create a test task to establish the schema
+        let testTask = Task(
+            title: "CloudKit Schema Setup Task",
+            description: "This task establishes the CloudKit schema",
+            assignedDate: Date(),
+            sortOrder: 0
+        )
+        
+        do {
+            let savedTask = try await saveTask(testTask)
+            print("Schema setup successful!")
+            
+            // Optionally delete the test task
+            if let recordID = savedTask.recordID {
+                try await deleteTask(recordID: recordID)
+                print("Test task deleted")
+            }
+        } catch {
+            print("Schema setup failed: \(error)")
+            throw error
         }
     }
 }

@@ -408,28 +408,22 @@ struct ItemDetailsView: View {
         }
     }
     
+    // Update these methods in your ItemDetailsView within TaskRowView.swift
+
     private func updateTaskName(_ newName: String) {
-        if let index = taskManager.tasks.firstIndex(where: { $0.id == task.id }) {
-            taskManager.tasks[index].title = newName
-        }
+        taskManager.updateTaskName(task, newName: newName)
     }
-    
+
     private func updateTaskDescription(_ newDescription: String) {
-        if let index = taskManager.tasks.firstIndex(where: { $0.id == task.id }) {
-            taskManager.tasks[index].description = newDescription
-        }
+        taskManager.updateTaskDescription(task, newDescription: newDescription)
     }
-    
+
     private func updateTaskDate(_ newDate: Date) {
-        if let index = taskManager.tasks.firstIndex(where: { $0.id == task.id }) {
-            taskManager.tasks[index].assignedDate = Calendar.current.startOfDay(for: newDate)
-        }
+        taskManager.updateTaskDate(task, newDate: newDate)
     }
-    
+
     private func updateTaskTime(_ newTime: Date?) {
-        if let index = taskManager.tasks.firstIndex(where: { $0.id == task.id }) {
-            taskManager.tasks[index].assignedTime = newTime
-        }
+        taskManager.updateTaskTime(task, time: newTime)
     }
 }
 
