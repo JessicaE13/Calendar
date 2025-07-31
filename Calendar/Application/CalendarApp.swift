@@ -38,9 +38,9 @@ class AppDelegate: NSObject, UIApplicationDelegate {
         switch notification.notificationType {
         case .query:
             // Handle query subscription notifications
-            // This would trigger a sync in your TaskManager
+            // This would trigger a sync in your ItemManager
             DispatchQueue.main.async {
-                // Get the shared TaskManager instance and trigger a sync
+                // Get the shared ItemManager instance and trigger a sync
                 // You might want to post a notification or use a shared observable object
                 NotificationCenter.default.post(name: .cloudKitDataChanged, object: nil)
             }

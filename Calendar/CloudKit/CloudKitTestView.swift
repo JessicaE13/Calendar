@@ -172,7 +172,7 @@ struct CloudKitTestView: View {
         isRunningTest = true
         testResults.removeAll()
         
-        _Concurrency.Task {
+        _Concurrency.Item {
             await performCloudKitTests()
             await MainActor.run {
                 isRunningTest = false
@@ -187,7 +187,7 @@ struct CloudKitTestView: View {
         
         // Wait a moment for account status to update
         do {
-            try await _Concurrency.Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+            try await _Concurrency.Item.sleep(nanoseconds: 1_000_000_000) // 1 second
         } catch {
             // Sleep was cancelled, continue anyway
         }
@@ -208,7 +208,7 @@ struct CloudKitTestView: View {
                 let database = CKContainer.default().privateCloudDatabase
                 
                 // Try a simple query that should work even with no records
-                let query = CKQuery(recordType: "Task", predicate: NSPredicate(value: false))
+                let query = CKQuery(recordType: "Item", predicate: NSPredicate(value: false))
                 let _ = try await database.records(matching: query)
                 addResult("✅ Private database accessible")
             } catch {
@@ -223,8 +223,8 @@ struct CloudKitTestView: View {
         addResult("Testing CloudKitManager functions...")
         do {
             // This should fail gracefully if no account or schema
-            let _ = try await cloudKitManager.fetchAllTasks()
-            addResult("✅ CloudKitManager.fetchAllTasks() executed")
+            let _ = try await cloudKitManager.fetchAllItems()
+            addResult("✅ CloudKitManager.fetchAllItems() executed")
         } catch {
             addResult("⚠️ CloudKitManager error: \(error.localizedDescription)")
             addResult("ℹ️ This is expected if CloudKit schema isn't set up yet")
@@ -245,7 +245,7 @@ struct CloudKitTestView: View {
         isRunningTest = true
         testResults.removeAll()
         
-        _Concurrency.Task {
+        _Concurrency.Item {
             await createCloudKitSchema()
             await MainActor.run {
                 isRunningTest = false
@@ -256,22 +256,22 @@ struct CloudKitTestView: View {
     private func createCloudKitSchema() async {
         addResult("🚀 Creating CloudKit schema...")
         
-        // Create a sample task to establish the schema
-        let sampleTask = Task(
-            title: "Schema Test Task",
-            description: "This task creates the CloudKit schema",
+        // Create a sample item to establish the schema
+        let sampleItem = Item(
+            title: "Schema Test Item",
+            description: "This item creates the CloudKit schema",
             assignedDate: Date(),
             sortOrder: 0
         )
         
-        addResult("📝 Creating sample task record...")
+        addResult("📝 Creating sample item record...")
         
         do {
-            let _savedTask = try await cloudKitManager.saveTask(sampleTask)
-            addResult("✅ Successfully created Task record type!")
+            let _savedItem = try await cloudKitManager.saveItem(sampleItem)
+            addResult("✅ Successfully created Item record type!")
             addResult("✅ CloudKit schema is now set up!")
-            addResult("🗑️ You can delete the test task from CloudKit Console if you want")
-            addResult("🎉 Your app can now sync tasks to iCloud!")
+            addResult("🗑️ You can delete the test item from CloudKit Console if you want")
+            addResult("🎉 Your app can now sync items to iCloud!")
         } catch {
             addResult("❌ Schema creation failed: \(error.localizedDescription)")
             if error.localizedDescription.contains("UnknownItem") {

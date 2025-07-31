@@ -1,5 +1,5 @@
 //
-//  TaskRowView.swift
+//  ItemRowView.swift
 //  Calendar
 //
 //  Created by Jessica Estes on 7/29/25.
@@ -7,13 +7,13 @@
 
 import SwiftUI
 
-struct TaskRowView: View {
-    @ObservedObject var taskManager: TaskManager
-    let task: Task
+struct ItemRowView: View {
+    @ObservedObject var itemManager: ItemManager
+    let item: Item
     @State private var showingItemDetails = false
     
     private var timeComponents: (time: String, period: String) {
-        guard let time = task.assignedTime else { return ("", "") }
+        guard let time = item.assignedTime else { return ("", "") }
         let formatter = DateFormatter()
         let calendar = Calendar.current
         let minutes = calendar.component(.minute, from: time)
@@ -39,32 +39,32 @@ struct TaskRowView: View {
         }) {
             HStack(spacing: 12) {
                 // Checkmark button (only when no time is assigned)
-                if task.assignedTime == nil {
+                if item.assignedTime == nil {
                     Button(action: {
-                        taskManager.toggleTaskCompletion(task)
+                        itemManager.toggleItemCompletion(item)
                     }) {
-                        Image(systemName: task.isCompleted ? "checkmark.square" : "square")
-                            .foregroundColor(task.isCompleted ? .green : .gray)
+                        Image(systemName: item.isCompleted ? "checkmark.square" : "square")
+                            .foregroundColor(item.isCompleted ? .green : .gray)
                             .font(.title2)
                     }
                     .buttonStyle(PlainButtonStyle())
                 }
                 
-                // Task content - different styling based on whether it has time
+                // Item content - different styling based on whether it has time
                 VStack(alignment: .leading, spacing: 4) {
-                    if let _ = task.assignedTime {
-                        // Task with time - add background with rounded corners
+                    if let _ = item.assignedTime {
+                        // Item with time - add background with rounded corners
                         HStack(spacing: 0) {
                             Text(timeComponents.time)
                                 .font(.system(size: 16))
                             Text(timeComponents.period)
                                 .font(.system(size: 10))
                                 .baselineOffset(-5) // Align with the bottom of the numbers
-                            Text(" \(task.title)")
+                            Text(" \(item.title)")
                                 .font(.system(size: 16))
                         }
-                        .strikethrough(task.isCompleted)
-                        .foregroundColor(task.isCompleted ? .secondary : .primary)
+                        .strikethrough(item.isCompleted)
+                        .foregroundColor(item.isCompleted ? .secondary : .primary)
                         .multilineTextAlignment(.leading)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
@@ -73,12 +73,12 @@ struct TaskRowView: View {
                                 .fill(Color("Accent1").opacity(0.3))
                         )
                     } else {
-                        // Task without time - no background
-                        Text(task.title)
+                        // Item without time - no background
+                        Text(item.title)
                             .font(.system(size: 16))
                             .padding(.vertical, 8)
-                            .strikethrough(task.isCompleted)
-                            .foregroundColor(task.isCompleted ? .secondary : .primary)
+                            .strikethrough(item.isCompleted)
+                            .foregroundColor(item.isCompleted ? .secondary : .primary)
                             .multilineTextAlignment(.leading)
                     }
                 }
@@ -90,8 +90,8 @@ struct TaskRowView: View {
         .padding(.vertical, 8)
         .sheet(isPresented: $showingItemDetails) {
             ItemDetailsView(
-                task: task,
-                taskManager: taskManager,
+                item: item,
+                itemManager: itemManager,
                 isPresented: $showingItemDetails
             )
             .presentationCornerRadius(30)
@@ -101,8 +101,8 @@ struct TaskRowView: View {
 }
 
 struct ItemDetailsView: View {
-    let task: Task
-    @ObservedObject var taskManager: TaskManager
+    let item: Item
+    @ObservedObject var itemManager: ItemManager
     @Binding var isPresented: Bool
     
     @State private var showingNameEditor = false
@@ -116,20 +116,20 @@ struct ItemDetailsView: View {
         let formatter = DateFormatter()
         let calendar = Calendar.current
         
-        if calendar.isDateInToday(task.assignedDate) {
+        if calendar.isDateInToday(item.assignedDate) {
             return "Today"
-        } else if calendar.isDate(task.assignedDate, equalTo: calendar.date(byAdding: .day, value: 1, to: Date()) ?? Date(), toGranularity: .day) {
+        } else if calendar.isDate(item.assignedDate, equalTo: calendar.date(byAdding: .day, value: 1, to: Date()) ?? Date(), toGranularity: .day) {
             return "Tomorrow"
-        } else if calendar.isDate(task.assignedDate, equalTo: calendar.date(byAdding: .day, value: -1, to: Date()) ?? Date(), toGranularity: .day) {
+        } else if calendar.isDate(item.assignedDate, equalTo: calendar.date(byAdding: .day, value: -1, to: Date()) ?? Date(), toGranularity: .day) {
             return "Yesterday"
         } else {
             formatter.dateStyle = .medium
-            return formatter.string(from: task.assignedDate)
+            return formatter.string(from: item.assignedDate)
         }
     }
     
     private var formattedTime: String {
-        guard let time = task.assignedTime else { return "No time set" }
+        guard let time = item.assignedTime else { return "No time set" }
         let formatter = DateFormatter()
         formatter.timeStyle = .short
         return formatter.string(from: time)
@@ -141,16 +141,16 @@ struct ItemDetailsView: View {
                 // Item completion toggle at the top
                 HStack {
                     Button(action: {
-                        taskManager.toggleTaskCompletion(task)
+                        itemManager.toggleItemCompletion(item)
                     }) {
                         HStack(spacing: 12) {
-                            Image(systemName: task.isCompleted ? "checkmark.circle.fill" : "circle")
+                            Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
                                 .font(.title2)
-                                .foregroundColor(task.isCompleted ? .green : .gray)
+                                .foregroundColor(item.isCompleted ? .green : .gray)
                             
-                            Text(task.isCompleted ? "Completed" : "Mark as complete")
+                            Text(item.isCompleted ? "Completed" : "Mark as complete")
                                 .font(.system(size: 16))
-                                .foregroundColor(task.isCompleted ? .green : .primary)
+                                .foregroundColor(item.isCompleted ? .green : .primary)
                         }
                     }
                     .buttonStyle(PlainButtonStyle())
@@ -181,7 +181,7 @@ struct ItemDetailsView: View {
                                 .foregroundColor(Color("Accent1"))
                             }
                             
-                            Text(task.title)
+                            Text(item.title)
                                 .font(.system(size: 20))
                                 .fontWeight(.medium)
                                 .multilineTextAlignment(.leading)
@@ -208,13 +208,13 @@ struct ItemDetailsView: View {
                                 .foregroundColor(Color("Accent1"))
                             }
                             
-                            if task.description.isEmpty {
+                            if item.description.isEmpty {
                                 Text("No description")
                                     .font(.system(size: 16))
                                     .foregroundColor(.secondary)
                                     .italic()
                             } else {
-                                Text(task.description)
+                                Text(item.description)
                                     .font(.system(size: 16))
                                     .multilineTextAlignment(.leading)
                                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -273,12 +273,12 @@ struct ItemDetailsView: View {
                             }
                             
                             HStack {
-                                Image(systemName: task.assignedTime != nil ? "clock" : "clock.badge.xmark")
+                                Image(systemName: item.assignedTime != nil ? "clock" : "clock.badge.xmark")
                                     .foregroundColor(.secondary)
                                 
                                 Text(formattedTime)
                                     .font(.system(size: 18))
-                                    .foregroundColor(task.assignedTime != nil ? .primary : .secondary)
+                                    .foregroundColor(item.assignedTime != nil ? .primary : .secondary)
                                 
                                 Spacer()
                             }
@@ -304,18 +304,18 @@ struct ItemDetailsView: View {
                                 .foregroundColor(Color("Accent1"))
                             }
                             
-                            if task.checklist.isEmpty {
+                            if item.checklist.isEmpty {
                                 Text("No checklist items")
                                     .font(.system(size: 16))
                                     .foregroundColor(.secondary)
                                     .italic()
                             } else {
                                 LazyVStack(spacing: 8) {
-                                    ForEach(task.checklist.sorted { $0.sortOrder < $1.sortOrder }) { item in
+                                    ForEach(item.checklist.sorted { $0.sortOrder < $1.sortOrder }) { item in
                                         ChecklistItemRow(
                                             item: item,
-                                            task: task,
-                                            taskManager: taskManager
+                                            item: item,
+                                            itemManager: itemManager
                                         )
                                     }
                                 }
@@ -326,7 +326,7 @@ struct ItemDetailsView: View {
                         
                         // Delete button at bottom
                         Button(action: {
-                            taskManager.deleteTask(task)
+                            itemManager.deleteItem(item)
                             isPresented = false
                         }) {
                             HStack {
@@ -361,34 +361,34 @@ struct ItemDetailsView: View {
         .presentationDetents([.height(600), .large])
         .sheet(isPresented: $showingNameEditor) {
             EditNameView(
-                currentName: task.title,
+                currentName: item.title,
                 onSave: { newName in
-                    updateTaskName(newName)
+                    updateItemName(newName)
                 }
             )
         }
         .sheet(isPresented: $showingDescriptionEditor) {
             EditDescriptionView(
-                currentDescription: task.description,
+                currentDescription: item.description,
                 onSave: { newDescription in
-                    updateTaskDescription(newDescription)
+                    updateItemDescription(newDescription)
                 }
             )
         }
         .sheet(isPresented: $showingDateEditor) {
             EditDateView(
-                currentDate: task.assignedDate,
+                currentDate: item.assignedDate,
                 onSave: { newDate in
-                    updateTaskDate(newDate)
+                    updateItemDate(newDate)
                 }
             )
         }
         .sheet(isPresented: $showingTimeEditor) {
             EditTimeView(
-                currentTime: task.assignedTime,
-                hasTime: task.assignedTime != nil,
+                currentTime: item.assignedTime,
+                hasTime: item.assignedTime != nil,
                 onSave: { newTime, hasTimeValue in
-                    updateTaskTime(hasTimeValue ? newTime : nil)
+                    updateItemTime(hasTimeValue ? newTime : nil)
                 }
             )
         }
@@ -396,7 +396,7 @@ struct ItemDetailsView: View {
             TextField("Item title", text: $newChecklistItemTitle)
             Button("Add") {
                 if !newChecklistItemTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    taskManager.addChecklistItem(task, title: newChecklistItemTitle)
+                    itemManager.addChecklistItem(item, title: newChecklistItemTitle)
                     newChecklistItemTitle = ""
                 }
             }
@@ -408,34 +408,34 @@ struct ItemDetailsView: View {
         }
     }
     
-    // Update these methods in your ItemDetailsView within TaskRowView.swift
+    // Update these methods in your ItemDetailsView within ItemRowView.swift
 
-    private func updateTaskName(_ newName: String) {
-        taskManager.updateTaskName(task, newName: newName)
+    private func updateItemName(_ newName: String) {
+        itemManager.updateItemName(item, newName: newName)
     }
 
-    private func updateTaskDescription(_ newDescription: String) {
-        taskManager.updateTaskDescription(task, newDescription: newDescription)
+    private func updateItemDescription(_ newDescription: String) {
+        itemManager.updateItemDescription(item, newDescription: newDescription)
     }
 
-    private func updateTaskDate(_ newDate: Date) {
-        taskManager.updateTaskDate(task, newDate: newDate)
+    private func updateItemDate(_ newDate: Date) {
+        itemManager.updateItemDate(item, newDate: newDate)
     }
 
-    private func updateTaskTime(_ newTime: Date?) {
-        taskManager.updateTaskTime(task, time: newTime)
+    private func updateItemTime(_ newTime: Date?) {
+        itemManager.updateItemTime(item, time: newTime)
     }
 }
 
 struct ChecklistItemRow: View {
     let item: ChecklistItem
-    let task: Task
-    @ObservedObject var taskManager: TaskManager
+    let item: Item
+    @ObservedObject var itemManager: ItemManager
     
     var body: some View {
         HStack(spacing: 12) {
             Button(action: {
-                taskManager.toggleChecklistItemCompletion(task, item: item)
+                itemManager.toggleChecklistItemCompletion(item, item: item)
             }) {
                 Image(systemName: item.isCompleted ? "checkmark.square.fill" : "square")
                     .foregroundColor(item.isCompleted ? .green : .gray)
@@ -451,7 +451,7 @@ struct ChecklistItemRow: View {
             Spacer()
             
             Button(action: {
-                taskManager.deleteChecklistItem(task, item: item)
+                itemManager.deleteChecklistItem(item, item: item)
             }) {
                 Image(systemName: "xmark.circle.fill")
                     .foregroundColor(.red.opacity(0.6))
@@ -666,6 +666,6 @@ struct EditTimeView: View {
 }
 
 #Preview {
-    let taskManager = TaskManager()
-    TaskRowView(taskManager: taskManager, task: taskManager.tasks[0])
+    let itemManager = ItemManager()
+    ItemRowView(itemManager: itemManager, item: itemManager.items[0])
 }

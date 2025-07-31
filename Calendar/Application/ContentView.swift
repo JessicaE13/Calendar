@@ -5,7 +5,7 @@ struct ContentView: View {
     @State private var currentMonth = Date()
     @State private var calendarOffset: CGFloat = 0
     @State private var isAnimatingMonthChange = false
-    @StateObject private var taskManager = TaskManager()
+    @StateObject private var itemManager = ItemManager()
     @StateObject private var cloudKitManager = CloudKitManager.shared
     @State private var showingCloudKitTest = false
     
@@ -22,14 +22,14 @@ struct ContentView: View {
                             .foregroundColor(cloudKitStatusColor)
                             .font(.caption)
                         
-                        if taskManager.isLoading {
+                        if itemManager.isLoading {
                             ProgressView()
                                 .scaleEffect(0.6)
                         }
                     }
                     .onTapGesture {
                         if cloudKitManager.isAccountAvailable {
-                            taskManager.forceSyncWithCloudKit()
+                            itemManager.forceSyncWithCloudKit()
                         } else {
                             showingCloudKitTest = true
                         }
@@ -81,7 +81,7 @@ struct ContentView: View {
                     Spacer()
                     
                     // Last sync indicator
-                    if let lastSync = taskManager.lastSyncDate {
+                    if let lastSync = itemManager.lastSyncDate {
                         Text("Synced \(timeAgoString(from: lastSync))")
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -90,23 +90,23 @@ struct ContentView: View {
                 }
                 .padding()
                 
-                TaskListView(taskManager: taskManager, selectedDate: selectedDate)
+                ItemListView(itemManager: itemManager, selectedDate: selectedDate)
                     .frame(maxHeight: .infinity)
             }
         }
         .sheet(isPresented: $showingCloudKitTest) {
             CloudKitTestView()
         }
-        .alert("Sync Error", isPresented: $taskManager.showingError) {
+        .alert("Sync Error", isPresented: $itemManager.showingError) {
             Button("OK") {
-                taskManager.showingError = false
+                itemManager.showingError = false
             }
             Button("Retry") {
-                taskManager.forceSyncWithCloudKit()
-                taskManager.showingError = false
+                itemManager.forceSyncWithCloudKit()
+                itemManager.showingError = false
             }
         } message: {
-            Text(taskManager.errorMessage ?? "An unknown error occurred")
+            Text(itemManager.errorMessage ?? "An unknown error occurred")
         }
         .onAppear {
             // Check CloudKit status when app appears
@@ -117,7 +117,7 @@ struct ContentView: View {
     // MARK: - CloudKit Status Helpers
     
     private var cloudKitStatusIcon: String {
-        if taskManager.isLoading {
+        if itemManager.isLoading {
             return "arrow.clockwise"
         }
         
@@ -134,7 +134,7 @@ struct ContentView: View {
     }
     
     private var cloudKitStatusColor: Color {
-        if taskManager.isLoading {
+        if itemManager.isLoading {
             return .blue
         }
         

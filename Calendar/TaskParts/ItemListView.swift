@@ -1,5 +1,5 @@
 //
-//  TaskListView.swift
+//  ItemListView.swift
 //  Calendar
 //
 //  Created by Jessica Estes on 7/29/25.
@@ -7,14 +7,14 @@
 
 import SwiftUI
 
-struct TaskListView: View {
-    @ObservedObject var taskManager: TaskManager
+struct ItemListView: View {
+    @ObservedObject var itemManager: ItemManager
     let selectedDate: Date
-    @State private var showingAddTask = false
-    @State private var newTaskTitle = ""
+    @State private var showingAddItem = false
+    @State private var newItemTitle = ""
     
-    private var tasksForSelectedDate: [Task] {
-        taskManager.tasksForDate(selectedDate)
+    private var itemsForSelectedDate: [Item] {
+        itemManager.itemsForDate(selectedDate)
     }
     
     private var selectedDateString: String {
@@ -34,18 +34,18 @@ struct TaskListView: View {
         ZStack {
             VStack(alignment: .leading, spacing: 16) {
                 
-                if tasksForSelectedDate.isEmpty {
+                if itemsForSelectedDate.isEmpty {
                     
                     VStack(spacing: 8) {
                         Image(systemName: "checkmark.square")
                             .font(.title)
                             .foregroundColor(.black.opacity(0.6))
                         
-                        Text("No tasks for this day")
+                        Text("No items for this day")
                             .font(.system(size: 16))
                             .foregroundColor(.secondary)
                         
-                        Text("Tap + to add a task")
+                        Text("Tap + to add a item")
                             .font(.system(size: 14))
                             .foregroundColor(.secondary.opacity(0.8))
                     }
@@ -63,20 +63,20 @@ struct TaskListView: View {
                                     .frame(width: 2)
                                     .padding(.leading, 3)
                                 VStack {
-                                    ForEach(Array(tasksForSelectedDate.enumerated()), id: \.element.id) { index, task in
+                                    ForEach(Array(itemsForSelectedDate.enumerated()), id: \.element.id) { index, item in
                                         HStack(alignment: .center, spacing: 28) {
                                             Circle()
                                                 .fill(.gray)
                                                 .frame(width: 8, height: 8)
                                             
-                                            TaskRowView(taskManager: taskManager, task: task)
+                                            ItemRowView(itemManager: itemManager, item: item)
                                             
                                             Spacer()
                                         }
                             
                        
                                     }
-                                    .onDelete(perform: deleteTasks)
+                                    .onDelete(perform: deleteItems)
                        
                                 }
                        
@@ -98,7 +98,7 @@ struct TaskListView: View {
                     Spacer()
                     
                     Button(action: {
-                        showingAddTask = true
+                        showingAddItem = true
                     }) {
                         Image(systemName: "plus")
                             .font(.title2)
@@ -113,30 +113,30 @@ struct TaskListView: View {
                     }
                     .buttonStyle(PlainButtonStyle())
                     .scaleEffect(1.0)
-                    .animation(.easeInOut(duration: 0.1), value: showingAddTask)
+                    .animation(.easeInOut(duration: 0.1), value: showingAddItem)
                 }
                 .padding(.trailing, 20)
                 .padding(.bottom, 20)
             }
         }
-        .sheet(isPresented: $showingAddTask) {
-            AddTaskView(taskManager: taskManager, selectedDate: selectedDate, isPresented: $showingAddTask)
+        .sheet(isPresented: $showingAddItem) {
+            AddItemView(itemManager: itemManager, selectedDate: selectedDate, isPresented: $showingAddItem)
         }
     }
     
-    private func deleteTasks(offsets: IndexSet) {
+    private func deleteItems(offsets: IndexSet) {
         for index in offsets {
-            let task = tasksForSelectedDate[index]
-            taskManager.deleteTask(task)
+            let item = itemsForSelectedDate[index]
+            itemManager.deleteItem(item)
         }
     }
 }
 
-struct AddTaskView: View {
-    @ObservedObject var taskManager: TaskManager
+struct AddItemView: View {
+    @ObservedObject var itemManager: ItemManager
     let selectedDate: Date // Add selectedDate parameter
     @Binding var isPresented: Bool
-    @State private var taskTitle = ""
+    @State private var itemTitle = ""
     @State private var hasTime = false
     @State private var selectedTime = Date()
     
@@ -144,11 +144,11 @@ struct AddTaskView: View {
         NavigationView {
             VStack(spacing: 24) {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Task Title")
+                    Text("Item Title")
                         .font(.system(size: 16))
                         .fontWeight(.medium)
                     
-                    TextField("Enter task description", text: $taskTitle)
+                    TextField("Enter item description", text: $itemTitle)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                         .font(.system(size: 16))
                 }
@@ -175,23 +175,23 @@ struct AddTaskView: View {
                     
                     Spacer()
                     
-                    Button("Add Task") {
-                        let newTask = Task(
-                            title: taskTitle,
+                    Button("Add Item") {
+                        let newItem = Item(
+                            title: itemTitle,
                             assignedDate: selectedDate, // Use the selected date
                             assignedTime: hasTime ? selectedTime : nil,
-                            sortOrder: taskManager.tasks.count
+                            sortOrder: itemManager.items.count
                         )
-                        taskManager.addTask(newTask)
+                        itemManager.addItem(newItem)
                         isPresented = false
                     }
                     .fontWeight(.semibold)
-                    .disabled(taskTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    .disabled(itemTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
                 .padding()
             }
             .padding()
-            .navigationTitle("New Task")
+            .navigationTitle("New Item")
             .navigationBarTitleDisplayMode(.inline)
         }
         .presentationDetents([.height(400)])
@@ -199,6 +199,6 @@ struct AddTaskView: View {
 }
 
 #Preview {
-    let taskManager = TaskManager()
-    TaskListView(taskManager: taskManager, selectedDate: Date())
+    let itemManager = ItemManager()
+    ItemListView(itemManager: itemManager, selectedDate: Date())
 }

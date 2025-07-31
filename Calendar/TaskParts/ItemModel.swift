@@ -1,5 +1,5 @@
 //
-//  TaskModel.swift
+//  ItemModel.swift
 //  Calendar
 //
 //  Clean final version - no compilation errors
@@ -17,18 +17,18 @@ struct ChecklistItem: Identifiable, Codable {
     var isCompleted: Bool = false
     var sortOrder: Int = 0
     var recordID: CKRecord.ID?
-    var parentTaskRecordID: CKRecord.ID?
+    var parentItemRecordID: CKRecord.ID?
     
     // Custom coding keys to handle CloudKit fields
     enum CodingKeys: String, CodingKey {
         case id, title, isCompleted, sortOrder
-        // recordID and parentTaskRecordID are not encoded/decoded
+        // recordID and parentItemRecordID are not encoded/decoded
     }
 }
 
-// MARK: - Task Model
+// MARK: - Item Model
 
-struct Task: Identifiable, Codable {
+struct Item: Identifiable, Codable {
     var id = UUID()
     var title: String
     var description: String = ""
@@ -58,12 +58,12 @@ struct Task: Identifiable, Codable {
 
 // MARK: - CloudKit Extensions
 
-extension Task {
+extension Item {
     // Convert to CloudKit record
     func toCKRecord() -> CKRecord {
-        let record = CKRecord(recordType: "Task", recordID: recordID ?? CKRecord.ID())
+        let record = CKRecord(recordType: "Item", recordID: recordID ?? CKRecord.ID())
         record["title"] = title
-        record["taskDescription"] = description
+        record["itemDescription"] = description
         record["isCompleted"] = isCompleted ? 1 : 0
         record["assignedDate"] = assignedDate
         record["assignedTime"] = assignedTime
@@ -85,41 +85,41 @@ extension Task {
     }
     
     // Create from CloudKit record
-    static func fromCKRecord(_ record: CKRecord) -> Task? {
+    static func fromCKRecord(_ record: CKRecord) -> Item? {
         guard let title = record["title"] as? String,
               let assignedDate = record["assignedDate"] as? Date else {
             return nil
         }
         
-        var task = Task(
+        var item = Item(
             title: title,
-            description: record["taskDescription"] as? String ?? "",
+            description: record["itemDescription"] as? String ?? "",
             assignedDate: assignedDate,
             assignedTime: record["assignedTime"] as? Date,
             sortOrder: record["sortOrder"] as? Int ?? 0
         )
         
         let isCompletedValue = record["isCompleted"] as? Int ?? 0
-        task.isCompleted = isCompletedValue == 1
-        task.recordID = record.recordID
-        task.lastModified = record["lastModified"] as? Date ?? Date()
+        item.isCompleted = isCompletedValue == 1
+        item.recordID = record.recordID
+        item.lastModified = record["lastModified"] as? Date ?? Date()
         
         if let userIDString = record["userID"] as? String,
            let userID = UUID(uuidString: userIDString) {
-            task.id = userID
+            item.id = userID
         }
         
         // Decode checklist from JSON data
         if let checklistData = record["checklist"] as? Data {
             do {
-                task.checklist = try JSONDecoder().decode([ChecklistItem].self, from: checklistData)
+                item.checklist = try JSONDecoder().decode([ChecklistItem].self, from: checklistData)
             } catch {
                 print("Failed to decode checklist: \(error)")
-                task.checklist = []
+                item.checklist = []
             }
         }
         
-        return task
+        return item
     }
 }
 
@@ -131,8 +131,8 @@ extension ChecklistItem {
         record["sortOrder"] = sortOrder
         record["userID"] = id.uuidString
         
-        if let parentRecordID = parentTaskRecordID {
-            record["parentTask"] = CKRecord.Reference(recordID: parentRecordID, action: .deleteSelf)
+        if let parentRecordID = parentItemRecordID {
+            record["parentItem"] = CKRecord.Reference(recordID: parentRecordID, action: .deleteSelf)
         }
         
         return record
@@ -157,18 +157,18 @@ extension ChecklistItem {
             item.id = userID
         }
         
-        if let parentReference = record["parentTask"] as? CKRecord.Reference {
-            item.parentTaskRecordID = parentReference.recordID
+        if let parentReference = record["parentItem"] as? CKRecord.Reference {
+            item.parentItemRecordID = parentReference.recordID
         }
         
         return item
     }
 }
 
-// MARK: - TaskManager Class
+// MARK: - ItemManager Class
 @MainActor
-class TaskManager: ObservableObject {
-    @Published var tasks: [Task] = []
+class ItemManager: ObservableObject {
+    @Published var items: [Item] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
     @Published var showingError = false
@@ -178,7 +178,7 @@ class TaskManager: ObservableObject {
     
     init() {
         setupCloudKitObservers()
-        loadSampleTasks()
+        loadSampleItems()
     }
     
     // Access CloudKit manager - standard singleton pattern
@@ -196,42 +196,42 @@ class TaskManager: ObservableObject {
             .store(in: &cancellables)
     }
     
-    private func loadSampleTasks() {
+    private func loadSampleItems() {
         let calendar = Calendar.current
         let today = Date()
         let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) ?? today
         let dayAfterTomorrow = calendar.date(byAdding: .day, value: 2, to: today) ?? today
         
-        // Only load sample tasks if we have no tasks yet
-        guard tasks.isEmpty else { return }
+        // Only load sample items if we have no items yet
+        guard items.isEmpty else { return }
         
-        self.tasks = [
-            Task(
+        self.items = [
+            Item(
                 title: "Team Meeting",
                 description: "Weekly standup with the product team to discuss project progress and upcoming deadlines.",
                 assignedDate: today,
                 assignedTime: calendar.date(bySettingHour: 10, minute: 0, second: 0, of: today),
                 sortOrder: 0
             ),
-            Task(
+            Item(
                 title: "Yoga Class",
                 description: "Beginner's yoga session at the local studio",
                 assignedDate: today,
                 assignedTime: calendar.date(bySettingHour: 16, minute: 0, second: 0, of: today),
                 sortOrder: 1
             ),
-            Task(
+            Item(
                 title: "Groceries",
                 description: "Weekly grocery shopping",
                 assignedDate: tomorrow,
                 sortOrder: 2
             ),
-            Task(
+            Item(
                 title: "Email and Inbox DMx",
                 assignedDate: today,
                 sortOrder: 3
             ),
-            Task(
+            Item(
                 title: "Doctor Appointment",
                 description: "Annual checkup with Dr. Smith",
                 assignedDate: dayAfterTomorrow,
@@ -240,9 +240,9 @@ class TaskManager: ObservableObject {
             )
         ]
         
-        // Add sample checklist to groceries task
-        if let groceryIndex = tasks.firstIndex(where: { $0.title == "Groceries" }) {
-            tasks[groceryIndex].checklist = [
+        // Add sample checklist to groceries item
+        if let groceryIndex = items.firstIndex(where: { $0.title == "Groceries" }) {
+            items[groceryIndex].checklist = [
                 ChecklistItem(title: "Milk", sortOrder: 0),
                 ChecklistItem(title: "Bread", sortOrder: 1),
                 ChecklistItem(title: "Eggs", sortOrder: 2),
@@ -254,7 +254,7 @@ class TaskManager: ObservableObject {
     // MARK: - CloudKit Sync Methods
     
     private func syncFromCloudKit() {
-        _Concurrency.Task { [weak self] in
+        _Concurrency.Item { [weak self] in
             guard let self = self else { return }
             
             // Check if CloudKit is available
@@ -262,9 +262,9 @@ class TaskManager: ObservableObject {
             guard isAvailable else { return }
             
             do {
-                let cloudTasks = try await self.cloudKitManager.fetchAllTasks()
+                let cloudItems = try await self.cloudKitManager.fetchAllItems()
                 await MainActor.run {
-                    self.mergeTasks(cloudTasks)
+                    self.mergeItems(cloudItems)
                     self.lastSyncDate = Date()
                 }
             } catch {
@@ -276,76 +276,76 @@ class TaskManager: ObservableObject {
         }
     }
     
-    private func mergeTasks(_ cloudTasks: [Task]) {
+    private func mergeItems(_ cloudItems: [Item]) {
         // Simple merge strategy: use cloud version if it's newer, otherwise keep local
-        var mergedTasks: [Task] = []
+        var mergedItems: [Item] = []
         
         // Create dictionaries for quick lookup
-        var localTasksDict = Dictionary(uniqueKeysWithValues: tasks.map { ($0.id, $0) })
+        var localItemsDict = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
         
-        // Add all cloud tasks (they're either new or updates)
-        for cloudTask in cloudTasks {
-            if let localTask = localTasksDict[cloudTask.id] {
+        // Add all cloud items (they're either new or updates)
+        for cloudItem in cloudItems {
+            if let localItem = localItemsDict[cloudItem.id] {
                 // Use the version with the latest modification date
-                mergedTasks.append(cloudTask.lastModified > localTask.lastModified ? cloudTask : localTask)
-                localTasksDict.removeValue(forKey: cloudTask.id)
+                mergedItems.append(cloudItem.lastModified > localItem.lastModified ? cloudItem : localItem)
+                localItemsDict.removeValue(forKey: cloudItem.id)
             } else {
-                // New task from cloud
-                mergedTasks.append(cloudTask)
+                // New item from cloud
+                mergedItems.append(cloudItem)
             }
         }
         
-        // Add remaining local tasks (not in cloud yet)
-        for (_, localTask) in localTasksDict {
-            mergedTasks.append(localTask)
+        // Add remaining local items (not in cloud yet)
+        for (_, localItem) in localItemsDict {
+            mergedItems.append(localItem)
         }
         
-        self.tasks = mergedTasks.sorted { $0.sortOrder < $1.sortOrder }
+        self.items = mergedItems.sorted { $0.sortOrder < $1.sortOrder }
     }
     
-    // MARK: - Task Management Methods
+    // MARK: - Item Management Methods
     
-    func addTask(_ task: Task) {
-        var newTask = task
-        newTask.sortOrder = tasks.count
-        newTask.lastModified = Date()
+    func addItem(_ item: Item) {
+        var newItem = item
+        newItem.sortOrder = items.count
+        newItem.lastModified = Date()
         
         // Add locally first for immediate UI update
-        tasks.append(newTask)
+        items.append(newItem)
         
         // Sync to CloudKit in background
-        _Concurrency.Task { [weak self] in
+        _Concurrency.Item { [weak self] in
             guard let self = self else { return }
-            let taskToSave = newTask // Capture the task value
+            let itemToSave = newItem // Capture the item value
             
             do {
-                let savedTask = try await self.cloudKitManager.saveTask(taskToSave)
+                let savedItem = try await self.cloudKitManager.saveItem(itemToSave)
                 await MainActor.run {
-                    if let index = self.tasks.firstIndex(where: { $0.id == taskToSave.id }) {
-                        self.tasks[index] = savedTask
+                    if let index = self.items.firstIndex(where: { $0.id == itemToSave.id }) {
+                        self.items[index] = savedItem
                     }
                 }
             } catch {
                 await MainActor.run {
-                    self.errorMessage = "Failed to sync task: \(error.localizedDescription)"
+                    self.errorMessage = "Failed to sync item: \(error.localizedDescription)"
                     self.showingError = true
                 }
             }
         }
     }
     
-    func deleteTask(_ task: Task) {
+    func deleteItem(_ item: Item) {
         // Remove locally first
-        tasks.removeAll { $0.id == task.id }
-        reorderTasks()
+        items.removeAll { $0.id == item.id }
+        reorderItems()
         
         // Delete from CloudKit in background
-        if let recordID = task.recordID {
-            _Concurrency.Task { [weak self] in
+        if let recordID = item.recordID {
+            _Concurrency.Item { [weak self] in
                 guard let self = self else { return }
                 
                 do {
-                    try await self.cloudKitManager.deleteTask(recordID: recordID)
+                    try await self.cloudKitManager.deleteItem(recordID: recordID)
                 } catch {
                     await MainActor.run {
                         self.errorMessage = "Failed to delete from iCloud: \(error.localizedDescription)"
@@ -356,27 +356,27 @@ class TaskManager: ObservableObject {
         }
     }
     
-    func toggleTaskCompletion(_ task: Task) {
-        if let index = tasks.firstIndex(where: { $0.id == task.id }) {
-            tasks[index].isCompleted.toggle()
-            tasks[index].lastModified = Date()
+    func toggleItemCompletion(_ item: Item) {
+        if let index = items.firstIndex(where: { $0.id == item.id }) {
+            items[index].isCompleted.toggle()
+            items[index].lastModified = Date()
             
-            let updatedTask = tasks[index]
+            let updatedItem = items[index]
             
             // Sync to CloudKit
-            _Concurrency.Task { [weak self] in
+            _Concurrency.Item { [weak self] in
                 guard let self = self else { return }
                 
                 do {
-                    let savedTask = try await self.cloudKitManager.saveTask(updatedTask)
+                    let savedItem = try await self.cloudKitManager.saveItem(updatedItem)
                     await MainActor.run {
-                        if let idx = self.tasks.firstIndex(where: { $0.id == updatedTask.id }) {
-                            self.tasks[idx] = savedTask
+                        if let idx = self.items.firstIndex(where: { $0.id == updatedItem.id }) {
+                            self.items[idx] = savedItem
                         }
                     }
                 } catch {
                     await MainActor.run {
-                        self.errorMessage = "Failed to sync task completion: \(error.localizedDescription)"
+                        self.errorMessage = "Failed to sync item completion: \(error.localizedDescription)"
                         self.showingError = true
                     }
                 }
@@ -384,22 +384,22 @@ class TaskManager: ObservableObject {
         }
     }
     
-    func updateTaskTime(_ task: Task, time: Date?) {
-        if let index = tasks.firstIndex(where: { $0.id == task.id }) {
-            tasks[index].assignedTime = time
-            tasks[index].lastModified = Date()
+    func updateItemTime(_ item: Item, time: Date?) {
+        if let index = items.firstIndex(where: { $0.id == item.id }) {
+            items[index].assignedTime = time
+            items[index].lastModified = Date()
             
-            let updatedTask = tasks[index]
+            let updatedItem = items[index]
             
             // Sync to CloudKit
-            _Concurrency.Task { [weak self] in
+            _Concurrency.Item { [weak self] in
                 guard let self = self else { return }
                 
                 do {
-                    _ = try await self.cloudKitManager.saveTask(updatedTask)
+                    _ = try await self.cloudKitManager.saveItem(updatedItem)
                 } catch {
                     await MainActor.run {
-                        self.errorMessage = "Failed to sync task time: \(error.localizedDescription)"
+                        self.errorMessage = "Failed to sync item time: \(error.localizedDescription)"
                         self.showingError = true
                     }
                 }
@@ -407,23 +407,23 @@ class TaskManager: ObservableObject {
         }
     }
     
-    func addChecklistItem(_ task: Task, title: String) {
-        if let index = tasks.firstIndex(where: { $0.id == task.id }) {
+    func addChecklistItem(_ item: Item, title: String) {
+        if let index = items.firstIndex(where: { $0.id == item.id }) {
             let newItem = ChecklistItem(
                 title: title,
-                sortOrder: tasks[index].checklist.count
+                sortOrder: items[index].checklist.count
             )
-            tasks[index].checklist.append(newItem)
-            tasks[index].lastModified = Date()
+            items[index].checklist.append(newItem)
+            items[index].lastModified = Date()
             
-            let updatedTask = tasks[index]
+            let updatedItem = items[index]
             
             // Sync to CloudKit
-            _Concurrency.Task { [weak self] in
+            _Concurrency.Item { [weak self] in
                 guard let self = self else { return }
                 
                 do {
-                    _ = try await self.cloudKitManager.saveTask(updatedTask)
+                    _ = try await self.cloudKitManager.saveItem(updatedItem)
                 } catch {
                     await MainActor.run {
                         self.errorMessage = "Failed to sync checklist: \(error.localizedDescription)"
@@ -434,24 +434,24 @@ class TaskManager: ObservableObject {
         }
     }
     
-    func deleteChecklistItem(_ task: Task, item: ChecklistItem) {
-        if let taskIndex = tasks.firstIndex(where: { $0.id == task.id }) {
-            tasks[taskIndex].checklist.removeAll { $0.id == item.id }
-            tasks[taskIndex].lastModified = Date()
+    func deleteChecklistItem(_ item: Item, item: ChecklistItem) {
+        if let itemIndex = items.firstIndex(where: { $0.id == item.id }) {
+            items[itemIndex].checklist.removeAll { $0.id == item.id }
+            items[itemIndex].lastModified = Date()
             
             // Reorder remaining items
-            for (index, _) in tasks[taskIndex].checklist.enumerated() {
-                tasks[taskIndex].checklist[index].sortOrder = index
+            for (index, _) in items[itemIndex].checklist.enumerated() {
+                items[itemIndex].checklist[index].sortOrder = index
             }
             
-            let updatedTask = tasks[taskIndex]
+            let updatedItem = items[itemIndex]
             
             // Sync to CloudKit
-            _Concurrency.Task { [weak self] in
+            _Concurrency.Item { [weak self] in
                 guard let self = self else { return }
                 
                 do {
-                    _ = try await self.cloudKitManager.saveTask(updatedTask)
+                    _ = try await self.cloudKitManager.saveItem(updatedItem)
                 } catch {
                     await MainActor.run {
                         self.errorMessage = "Failed to sync checklist: \(error.localizedDescription)"
@@ -462,20 +462,20 @@ class TaskManager: ObservableObject {
         }
     }
     
-    func toggleChecklistItemCompletion(_ task: Task, item: ChecklistItem) {
-        if let taskIndex = tasks.firstIndex(where: { $0.id == task.id }),
-           let itemIndex = tasks[taskIndex].checklist.firstIndex(where: { $0.id == item.id }) {
-            tasks[taskIndex].checklist[itemIndex].isCompleted.toggle()
-            tasks[taskIndex].lastModified = Date()
+    func toggleChecklistItemCompletion(_ item: Item, item: ChecklistItem) {
+        if let itemIndex = items.firstIndex(where: { $0.id == item.id }),
+           let itemIndex = items[itemIndex].checklist.firstIndex(where: { $0.id == item.id }) {
+            items[itemIndex].checklist[itemIndex].isCompleted.toggle()
+            items[itemIndex].lastModified = Date()
             
-            let updatedTask = tasks[taskIndex]
+            let updatedItem = items[itemIndex]
             
             // Sync to CloudKit
-            _Concurrency.Task { [weak self] in
+            _Concurrency.Item { [weak self] in
                 guard let self = self else { return }
                 
                 do {
-                    _ = try await self.cloudKitManager.saveTask(updatedTask)
+                    _ = try await self.cloudKitManager.saveItem(updatedItem)
                 } catch {
                     await MainActor.run {
                         self.errorMessage = "Failed to sync checklist: \(error.localizedDescription)"
@@ -486,47 +486,47 @@ class TaskManager: ObservableObject {
         }
     }
     
-    func moveTask(from source: IndexSet, to destination: Int) {
-        tasks.move(fromOffsets: source, toOffset: destination)
-        reorderTasks()
+    func moveItem(from source: IndexSet, to destination: Int) {
+        items.move(fromOffsets: source, toOffset: destination)
+        reorderItems()
         
-        // Sync all affected tasks to CloudKit
-        _Concurrency.Task { [weak self] in
+        // Sync all affected items to CloudKit
+        _Concurrency.Item { [weak self] in
             guard let self = self else { return }
-            let tasksToSync = await MainActor.run { self.tasks }
+            let itemsToSync = await MainActor.run { self.items }
             
-            for task in tasksToSync {
+            for item in itemsToSync {
                 do {
-                    _ = try await self.cloudKitManager.saveTask(task)
+                    _ = try await self.cloudKitManager.saveItem(item)
                 } catch {
-                    print("Failed to sync task order: \(error)")
+                    print("Failed to sync item order: \(error)")
                 }
             }
         }
     }
     
-    private func reorderTasks() {
-        for (index, _) in tasks.enumerated() {
-            tasks[index].sortOrder = index
-            tasks[index].lastModified = Date()
+    private func reorderItems() {
+        for (index, _) in items.enumerated() {
+            items[index].sortOrder = index
+            items[index].lastModified = Date()
         }
     }
     
-    func tasksForDate(_ date: Date) -> [Task] {
+    func itemsForDate(_ date: Date) -> [Item] {
         let calendar = Calendar.current
         let targetDate = calendar.startOfDay(for: date)
         
-        return tasks.filter { task in
-            calendar.isDate(task.assignedDate, equalTo: targetDate, toGranularity: .day)
-        }.sorted { task1, task2 in
-            if let time1 = task1.assignedTime, let time2 = task2.assignedTime {
+        return items.filter { item in
+            calendar.isDate(item.assignedDate, equalTo: targetDate, toGranularity: .day)
+        }.sorted { item1, item2 in
+            if let time1 = item1.assignedTime, let time2 = item2.assignedTime {
                 return time1 < time2
-            } else if task1.assignedTime != nil && task2.assignedTime == nil {
+            } else if item1.assignedTime != nil && item2.assignedTime == nil {
                 return true
-            } else if task1.assignedTime == nil && task2.assignedTime != nil {
+            } else if item1.assignedTime == nil && item2.assignedTime != nil {
                 return false
             } else {
-                return task1.sortOrder < task2.sortOrder
+                return item1.sortOrder < item2.sortOrder
             }
         }
     }
@@ -537,24 +537,24 @@ class TaskManager: ObservableObject {
         syncFromCloudKit()
     }
     
-    // MARK: - Task Update Methods for ItemDetailsView
+    // MARK: - Item Update Methods for ItemDetailsView
     
-    func updateTaskName(_ task: Task, newName: String) {
-        if let index = tasks.firstIndex(where: { $0.id == task.id }) {
-            tasks[index].title = newName
-            tasks[index].lastModified = Date()
+    func updateItemName(_ item: Item, newName: String) {
+        if let index = items.firstIndex(where: { $0.id == item.id }) {
+            items[index].title = newName
+            items[index].lastModified = Date()
             
-            let updatedTask = tasks[index]
+            let updatedItem = items[index]
             
             // Sync to CloudKit
-            _Concurrency.Task { [weak self] in
+            _Concurrency.Item { [weak self] in
                 guard let self = self else { return }
                 
                 do {
-                    _ = try await self.cloudKitManager.saveTask(updatedTask)
+                    _ = try await self.cloudKitManager.saveItem(updatedItem)
                 } catch {
                     await MainActor.run {
-                        self.errorMessage = "Failed to sync task name: \(error.localizedDescription)"
+                        self.errorMessage = "Failed to sync item name: \(error.localizedDescription)"
                         self.showingError = true
                     }
                 }
@@ -562,22 +562,22 @@ class TaskManager: ObservableObject {
         }
     }
     
-    func updateTaskDescription(_ task: Task, newDescription: String) {
-        if let index = tasks.firstIndex(where: { $0.id == task.id }) {
-            tasks[index].description = newDescription
-            tasks[index].lastModified = Date()
+    func updateItemDescription(_ item: Item, newDescription: String) {
+        if let index = items.firstIndex(where: { $0.id == item.id }) {
+            items[index].description = newDescription
+            items[index].lastModified = Date()
             
-            let updatedTask = tasks[index]
+            let updatedItem = items[index]
             
             // Sync to CloudKit
-            _Concurrency.Task { [weak self] in
+            _Concurrency.Item { [weak self] in
                 guard let self = self else { return }
                 
                 do {
-                    _ = try await self.cloudKitManager.saveTask(updatedTask)
+                    _ = try await self.cloudKitManager.saveItem(updatedItem)
                 } catch {
                     await MainActor.run {
-                        self.errorMessage = "Failed to sync task description: \(error.localizedDescription)"
+                        self.errorMessage = "Failed to sync item description: \(error.localizedDescription)"
                         self.showingError = true
                     }
                 }
@@ -585,22 +585,22 @@ class TaskManager: ObservableObject {
         }
     }
     
-    func updateTaskDate(_ task: Task, newDate: Date) {
-        if let index = tasks.firstIndex(where: { $0.id == task.id }) {
-            tasks[index].assignedDate = Calendar.current.startOfDay(for: newDate)
-            tasks[index].lastModified = Date()
+    func updateItemDate(_ item: Item, newDate: Date) {
+        if let index = items.firstIndex(where: { $0.id == item.id }) {
+            items[index].assignedDate = Calendar.current.startOfDay(for: newDate)
+            items[index].lastModified = Date()
             
-            let updatedTask = tasks[index]
+            let updatedItem = items[index]
             
             // Sync to CloudKit
-            _Concurrency.Task { [weak self] in
+            _Concurrency.Item { [weak self] in
                 guard let self = self else { return }
                 
                 do {
-                    _ = try await self.cloudKitManager.saveTask(updatedTask)
+                    _ = try await self.cloudKitManager.saveItem(updatedItem)
                 } catch {
                     await MainActor.run {
-                        self.errorMessage = "Failed to sync task date: \(error.localizedDescription)"
+                        self.errorMessage = "Failed to sync item date: \(error.localizedDescription)"
                         self.showingError = true
                     }
                 }

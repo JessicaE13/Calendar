@@ -45,32 +45,32 @@ class CloudKitManager: ObservableObject {
     
     // MARK: - Save Operations
     
-    func saveTask(_ task: Task) async throws -> Task {
+    func saveItem(_ item: Item) async throws -> Item {
         guard isAccountAvailable else {
             throw CloudKitError.accountNotAvailable
         }
         
-        var updatedTask = task
-        updatedTask.lastModified = Date()
+        var updatedItem = item
+        updatedItem.lastModified = Date()
         
-        let record = updatedTask.toCKRecord()
+        let record = updatedItem.toCKRecord()
         
-        print("Saving task to CloudKit: \(task.title)")
+        print("Saving item to CloudKit: \(item.title)")
         
         do {
             let savedRecord = try await privateDatabase.save(record)
-            updatedTask.recordID = savedRecord.recordID
-            print("Successfully saved task: \(task.title)")
-            return updatedTask
+            updatedItem.recordID = savedRecord.recordID
+            print("Successfully saved item: \(item.title)")
+            return updatedItem
         } catch {
-            print("Failed to save task: \(error)")
+            print("Failed to save item: \(error)")
             throw CloudKitError.saveFailed(error)
         }
     }
     
     // MARK: - Fetch Operations
     
-    func fetchAllTasks() async throws -> [Task] {
+    func fetchAllItems() async throws -> [Item] {
         guard isAccountAvailable else {
             throw CloudKitError.accountNotAvailable
         }
@@ -83,29 +83,29 @@ class CloudKitManager: ObservableObject {
             lastSyncDate = Date()
         }
         
-        let query = CKQuery(recordType: "Task", predicate: NSPredicate(value: true))
+        let query = CKQuery(recordType: "Item", predicate: NSPredicate(value: true))
         query.sortDescriptors = [NSSortDescriptor(key: "lastModified", ascending: false)]
         
-        print("Fetching tasks from CloudKit...")
+        print("Fetching items from CloudKit...")
         
         do {
             let (matchResults, _) = try await privateDatabase.records(matching: query)
             
-            var tasks: [Task] = []
+            var items: [Item] = []
             for (_, result) in matchResults {
                 switch result {
                 case .success(let record):
-                    if let task = Task.fromCKRecord(record) {
-                        tasks.append(task)
-                        print("Fetched task: \(task.title)")
+                    if let item = Item.fromCKRecord(record) {
+                        items.append(item)
+                        print("Fetched item: \(item.title)")
                     }
                 case .failure(let error):
-                    print("Failed to fetch task record: \(error)")
+                    print("Failed to fetch item record: \(error)")
                 }
             }
             
-            print("Successfully fetched \(tasks.count) tasks from CloudKit")
-            return tasks
+            print("Successfully fetched \(items.count) items from CloudKit")
+            return items
         } catch let error as CKError {
             print("CloudKit fetch error: \(error)")
             // Handle specific CloudKit errors
@@ -122,18 +122,18 @@ class CloudKitManager: ObservableObject {
     
     // MARK: - Delete Operations
     
-    func deleteTask(recordID: CKRecord.ID) async throws {
+    func deleteItem(recordID: CKRecord.ID) async throws {
         guard isAccountAvailable else {
             throw CloudKitError.accountNotAvailable
         }
         
-        print("Deleting task from CloudKit: \(recordID)")
+        print("Deleting item from CloudKit: \(recordID)")
         
         do {
             _ = try await privateDatabase.deleteRecord(withID: recordID)
-            print("Successfully deleted task from CloudKit")
+            print("Successfully deleted item from CloudKit")
         } catch {
-            print("Failed to delete task: \(error)")
+            print("Failed to delete item: \(error)")
             throw CloudKitError.deleteFailed(error)
         }
     }
@@ -143,22 +143,22 @@ class CloudKitManager: ObservableObject {
     func setupSchema() async throws {
         print("Setting up CloudKit schema...")
         
-        // Create a test task to establish the schema
-        let testTask = Task(
-            title: "CloudKit Schema Setup Task",
-            description: "This task establishes the CloudKit schema",
+        // Create a test item to establish the schema
+        let testItem = Item(
+            title: "CloudKit Schema Setup Item",
+            description: "This item establishes the CloudKit schema",
             assignedDate: Date(),
             sortOrder: 0
         )
         
         do {
-            let savedTask = try await saveTask(testTask)
+            let savedItem = try await saveItem(testItem)
             print("Schema setup successful!")
             
-            // Optionally delete the test task
-            if let recordID = savedTask.recordID {
-                try await deleteTask(recordID: recordID)
-                print("Test task deleted")
+            // Optionally delete the test item
+            if let recordID = savedItem.recordID {
+                try await deleteItem(recordID: recordID)
+                print("Test item deleted")
             }
         } catch {
             print("Schema setup failed: \(error)")
