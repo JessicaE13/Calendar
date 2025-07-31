@@ -1,4 +1,5 @@
 import SwiftUI
+import CloudKit
 
 struct ContentView: View {
     @State private var selectedDate = Date()
@@ -70,6 +71,10 @@ struct ContentView: View {
                             }
                         }
                 )
+                
+                Text("Entitlements container: \(CKContainer.default().containerIdentifier ?? "nil")")
+                Text("Explicit container: \(CKContainer(identifier: "iCloud.com.estes.Calendar").containerIdentifier ?? "nil")")
+
                 
                 HStack {
                     Text(selectedDateString())
