@@ -6,6 +6,7 @@ struct ContentView: View {
     @State private var calendarOffset: CGFloat = 0
     @State private var isAnimatingMonthChange = false
     @StateObject private var taskManager = TaskManager()
+    @State private var showingCloudKitTest = false
     
     var body: some View {
         
@@ -16,6 +17,16 @@ struct ContentView: View {
             VStack(spacing: 0) {
                 
                 HStack {
+                    
+                    // CloudKit Test Button (temporary)
+                    Button("CloudKit Test") {
+                        showingCloudKitTest = true
+                    }
+                    .font(.caption)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.blue.opacity(0.2))
+                    .cornerRadius(4)
                     
                     Spacer()
                     
@@ -62,6 +73,9 @@ struct ContentView: View {
                          .frame(maxHeight: .infinity)
                 
             }
+        }
+        .sheet(isPresented: $showingCloudKitTest) {
+            CloudKitTestView()
         }
     }
     

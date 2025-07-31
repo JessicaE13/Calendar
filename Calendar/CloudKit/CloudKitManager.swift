@@ -9,6 +9,7 @@ import Foundation
 import CloudKit
 import Combine
 
+@MainActor
 class CloudKitManager: ObservableObject {
     static let shared = CloudKitManager()
     
@@ -68,15 +69,12 @@ class CloudKitManager: ObservableObject {
             throw CloudKitError.accountNotAvailable
         }
         
-        DispatchQueue.main.async {
-            self.isSyncing = true
-        }
+        // Set syncing state directly since we're @MainActor
+        isSyncing = true
         
         defer {
-            DispatchQueue.main.async {
-                self.isSyncing = false
-                self.lastSyncDate = Date()
-            }
+            isSyncing = false
+            lastSyncDate = Date()
         }
         
         let query = CKQuery(recordType: "Task", predicate: NSPredicate(value: true))

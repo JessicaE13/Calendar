@@ -2,7 +2,7 @@
 //  CalendarApp.swift
 //  Calendar
 //
-//  Updated with CloudKit remote notifications support
+//  Updated with CloudKit remote notifications support - FIXED
 //
 
 import SwiftUI
@@ -48,6 +48,10 @@ class AppDelegate: NSObject, UIApplicationDelegate {
             
         case .database:
             // Handle database change notifications
+            completionHandler(.newData)
+            
+        case .recordZone:
+            // Handle record zone notifications
             completionHandler(.newData)
             
         case .readNotification:
