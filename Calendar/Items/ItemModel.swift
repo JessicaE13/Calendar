@@ -2,7 +2,7 @@
 //  ItemModel.swift
 //  Calendar
 //
-//  Clean final version - no compilation errors
+//  Minimal fix - keep CloudKit record type as "Item" but use CalendarItem as Swift type
 //
 
 import Foundation
@@ -26,7 +26,7 @@ struct ChecklistItem: Identifiable, Codable {
     }
 }
 
-// MARK: - Item Model
+// MARK: - Item Model (keeping original name to avoid massive refactoring)
 
 struct Item: Identifiable, Codable {
     var id = UUID()
@@ -143,25 +143,25 @@ extension ChecklistItem {
             return nil
         }
         
-        var item = ChecklistItem(
+        var checklistItem = ChecklistItem(
             title: title,
             sortOrder: record["sortOrder"] as? Int ?? 0
         )
         
         let isCompletedValue = record["isCompleted"] as? Int ?? 0
-        item.isCompleted = isCompletedValue == 1
-        item.recordID = record.recordID
+        checklistItem.isCompleted = isCompletedValue == 1
+        checklistItem.recordID = record.recordID
         
         if let userIDString = record["userID"] as? String,
            let userID = UUID(uuidString: userIDString) {
-            item.id = userID
+            checklistItem.id = userID
         }
         
         if let parentReference = record["parentItem"] as? CKRecord.Reference {
-            item.parentItemRecordID = parentReference.recordID
+            checklistItem.parentItemRecordID = parentReference.recordID
         }
         
-        return item
+        return checklistItem
     }
 }
 
@@ -254,7 +254,7 @@ class ItemManager: ObservableObject {
     // MARK: - CloudKit Sync Methods
     
     private func syncFromCloudKit() {
-        _Concurrency.Item { [weak self] in
+        Task { [weak self] in
             guard let self = self else { return }
             
             // Check if CloudKit is available
@@ -314,7 +314,7 @@ class ItemManager: ObservableObject {
         items.append(newItem)
         
         // Sync to CloudKit in background
-        _Concurrency.Item { [weak self] in
+        Task { [weak self] in
             guard let self = self else { return }
             let itemToSave = newItem // Capture the item value
             
@@ -341,7 +341,7 @@ class ItemManager: ObservableObject {
         
         // Delete from CloudKit in background
         if let recordID = item.recordID {
-            _Concurrency.Item { [weak self] in
+            Task { [weak self] in
                 guard let self = self else { return }
                 
                 do {
@@ -364,7 +364,7 @@ class ItemManager: ObservableObject {
             let updatedItem = items[index]
             
             // Sync to CloudKit
-            _Concurrency.Item { [weak self] in
+            Task { [weak self] in
                 guard let self = self else { return }
                 
                 do {
@@ -392,7 +392,7 @@ class ItemManager: ObservableObject {
             let updatedItem = items[index]
             
             // Sync to CloudKit
-            _Concurrency.Item { [weak self] in
+            Task { [weak self] in
                 guard let self = self else { return }
                 
                 do {
@@ -409,17 +409,17 @@ class ItemManager: ObservableObject {
     
     func addChecklistItem(_ item: Item, title: String) {
         if let index = items.firstIndex(where: { $0.id == item.id }) {
-            let newItem = ChecklistItem(
+            let newChecklistItem = ChecklistItem(
                 title: title,
                 sortOrder: items[index].checklist.count
             )
-            items[index].checklist.append(newItem)
+            items[index].checklist.append(newChecklistItem)
             items[index].lastModified = Date()
             
             let updatedItem = items[index]
             
             // Sync to CloudKit
-            _Concurrency.Item { [weak self] in
+            Task { [weak self] in
                 guard let self = self else { return }
                 
                 do {
@@ -434,9 +434,9 @@ class ItemManager: ObservableObject {
         }
     }
     
-    func deleteChecklistItem(_ item: Item, item: ChecklistItem) {
+    func deleteChecklistItem(_ item: Item, checklistItem: ChecklistItem) {
         if let itemIndex = items.firstIndex(where: { $0.id == item.id }) {
-            items[itemIndex].checklist.removeAll { $0.id == item.id }
+            items[itemIndex].checklist.removeAll { $0.id == checklistItem.id }
             items[itemIndex].lastModified = Date()
             
             // Reorder remaining items
@@ -447,7 +447,7 @@ class ItemManager: ObservableObject {
             let updatedItem = items[itemIndex]
             
             // Sync to CloudKit
-            _Concurrency.Item { [weak self] in
+            Task { [weak self] in
                 guard let self = self else { return }
                 
                 do {
@@ -462,16 +462,16 @@ class ItemManager: ObservableObject {
         }
     }
     
-    func toggleChecklistItemCompletion(_ item: Item, item: ChecklistItem) {
+    func toggleChecklistItemCompletion(_ item: Item, checklistItem: ChecklistItem) {
         if let itemIndex = items.firstIndex(where: { $0.id == item.id }),
-           let itemIndex = items[itemIndex].checklist.firstIndex(where: { $0.id == item.id }) {
-            items[itemIndex].checklist[itemIndex].isCompleted.toggle()
+           let checklistIndex = items[itemIndex].checklist.firstIndex(where: { $0.id == checklistItem.id }) {
+            items[itemIndex].checklist[checklistIndex].isCompleted.toggle()
             items[itemIndex].lastModified = Date()
             
             let updatedItem = items[itemIndex]
             
             // Sync to CloudKit
-            _Concurrency.Item { [weak self] in
+            Task { [weak self] in
                 guard let self = self else { return }
                 
                 do {
@@ -491,7 +491,7 @@ class ItemManager: ObservableObject {
         reorderItems()
         
         // Sync all affected items to CloudKit
-        _Concurrency.Item { [weak self] in
+        Task { [weak self] in
             guard let self = self else { return }
             let itemsToSync = await MainActor.run { self.items }
             
@@ -547,7 +547,7 @@ class ItemManager: ObservableObject {
             let updatedItem = items[index]
             
             // Sync to CloudKit
-            _Concurrency.Item { [weak self] in
+            Task { [weak self] in
                 guard let self = self else { return }
                 
                 do {
@@ -570,7 +570,7 @@ class ItemManager: ObservableObject {
             let updatedItem = items[index]
             
             // Sync to CloudKit
-            _Concurrency.Item { [weak self] in
+            Task { [weak self] in
                 guard let self = self else { return }
                 
                 do {
@@ -593,7 +593,7 @@ class ItemManager: ObservableObject {
             let updatedItem = items[index]
             
             // Sync to CloudKit
-            _Concurrency.Item { [weak self] in
+            Task { [weak self] in
                 guard let self = self else { return }
                 
                 do {

@@ -3,6 +3,7 @@
 //  Calendar
 //
 //  Created by Jessica Estes on 7/29/25.
+//  Minimal fix - keep using Item type
 //
 
 import SwiftUI
@@ -311,10 +312,10 @@ struct ItemDetailsView: View {
                                     .italic()
                             } else {
                                 LazyVStack(spacing: 8) {
-                                    ForEach(item.checklist.sorted { $0.sortOrder < $1.sortOrder }) { item in
+                                    ForEach(item.checklist.sorted { $0.sortOrder < $1.sortOrder }) { checklistItem in
                                         ChecklistItemRow(
-                                            item: item,
-                                            item: item,
+                                            checklistItem: checklistItem,
+                                            parentItem: item,
                                             itemManager: itemManager
                                         )
                                     }
@@ -428,30 +429,30 @@ struct ItemDetailsView: View {
 }
 
 struct ChecklistItemRow: View {
-    let item: ChecklistItem
-    let item: Item
+    let checklistItem: ChecklistItem
+    let parentItem: Item
     @ObservedObject var itemManager: ItemManager
     
     var body: some View {
         HStack(spacing: 12) {
             Button(action: {
-                itemManager.toggleChecklistItemCompletion(item, item: item)
+                itemManager.toggleChecklistItemCompletion(parentItem, checklistItem: checklistItem)
             }) {
-                Image(systemName: item.isCompleted ? "checkmark.square.fill" : "square")
-                    .foregroundColor(item.isCompleted ? .green : .gray)
+                Image(systemName: checklistItem.isCompleted ? "checkmark.square.fill" : "square")
+                    .foregroundColor(checklistItem.isCompleted ? .green : .gray)
                     .font(.system(size: 16))
             }
             .buttonStyle(PlainButtonStyle())
             
-            Text(item.title)
+            Text(checklistItem.title)
                 .font(.system(size: 16))
-                .strikethrough(item.isCompleted)
-                .foregroundColor(item.isCompleted ? .secondary : .primary)
+                .strikethrough(checklistItem.isCompleted)
+                .foregroundColor(checklistItem.isCompleted ? .secondary : .primary)
             
             Spacer()
             
             Button(action: {
-                itemManager.deleteChecklistItem(item, item: item)
+                itemManager.deleteChecklistItem(parentItem, checklistItem: checklistItem)
             }) {
                 Image(systemName: "xmark.circle.fill")
                     .foregroundColor(.red.opacity(0.6))

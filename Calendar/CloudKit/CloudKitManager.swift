@@ -2,7 +2,7 @@
 //  CloudKitManager.swift
 //  Calendar
 //
-//  Enhanced CloudKit sync manager with proper database access
+//  Minimal fix - keep using "Item" record type for CloudKit compatibility
 //
 
 import Foundation

@@ -3,6 +3,7 @@
 //  Calendar
 //
 //  Created by Jessica Estes on 7/29/25.
+//  Minimal fix - keep using Item type
 //
 
 import SwiftUI
