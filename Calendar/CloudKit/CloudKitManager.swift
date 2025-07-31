@@ -23,7 +23,7 @@ class CloudKitManager: ObservableObject {
     
     init() {
         self.privateDatabase = container.privateCloudDatabase
-        checkAccountStatus()
+     
         
          
             // Debug info - add these lines
