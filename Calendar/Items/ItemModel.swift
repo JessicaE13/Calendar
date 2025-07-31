@@ -257,8 +257,8 @@ class ItemManager: ObservableObject {
         Task { [weak self] in
             guard let self = self else { return }
             
-            // Check if CloudKit is available
-            let isAvailable = await self.cloudKitManager.isAccountAvailable
+            // Check if CloudKit is available - remove 'await' since this is just a property access
+            let isAvailable = self.cloudKitManager.isAccountAvailable
             guard isAvailable else { return }
             
             do {

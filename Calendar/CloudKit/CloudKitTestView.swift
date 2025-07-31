@@ -172,7 +172,7 @@ struct CloudKitTestView: View {
         isRunningTest = true
         testResults.removeAll()
         
-        _Concurrency.Item {
+        Task {
             await performCloudKitTests()
             await MainActor.run {
                 isRunningTest = false
@@ -187,7 +187,7 @@ struct CloudKitTestView: View {
         
         // Wait a moment for account status to update
         do {
-            try await _Concurrency.Item.sleep(nanoseconds: 1_000_000_000) // 1 second
+            try await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
         } catch {
             // Sleep was cancelled, continue anyway
         }
@@ -245,7 +245,7 @@ struct CloudKitTestView: View {
         isRunningTest = true
         testResults.removeAll()
         
-        _Concurrency.Item {
+        Task {
             await createCloudKitSchema()
             await MainActor.run {
                 isRunningTest = false
@@ -267,7 +267,7 @@ struct CloudKitTestView: View {
         addResult("📝 Creating sample item record...")
         
         do {
-            let _savedItem = try await cloudKitManager.saveItem(sampleItem)
+            _ = try await cloudKitManager.saveItem(sampleItem)
             addResult("✅ Successfully created Item record type!")
             addResult("✅ CloudKit schema is now set up!")
             addResult("🗑️ You can delete the test item from CloudKit Console if you want")
