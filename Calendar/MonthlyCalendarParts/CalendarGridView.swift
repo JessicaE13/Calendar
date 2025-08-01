@@ -2,7 +2,7 @@
 //  CalendarGridView.swift
 //  Calendar
 //
-//  Updated with Coverflow carousel appearance
+//  Simplified version - shows only the current month without carousel
 //
 
 import SwiftUI
@@ -10,8 +10,6 @@ import SwiftUI
 struct CalendarGridView: View {
     let currentMonth: Date
     @Binding var selectedDate: Date
-    @State private var dragOffset: CGFloat = 0
-    @State private var isAnimating = false
     
     // Callback for month changes
     let onMonthChange: (SwipeDirection) -> Void
@@ -31,162 +29,23 @@ struct CalendarGridView: View {
     
     enum SwipeDirection {
         case next, previous
-    }
-    
-    // Generate months for carousel (previous, current, next)
-    private var carouselMonths: [Date] {
-        let calendar = Calendar.current
-        let previousMonth = calendar.date(byAdding: .month, value: -1, to: currentMonth) ?? currentMonth
-        let nextMonth = calendar.date(byAdding: .month, value: 1, to: currentMonth) ?? currentMonth
-        return [previousMonth, currentMonth, nextMonth]
-    }
-    
-    var body: some View {
-        GeometryReader { geometry in
-            let cardWidth: CGFloat = min(280, geometry.size.width - 60)
-            let sideCardOffset: CGFloat = cardWidth * 0.4 // Reduced from 0.6
-            
-            HStack(spacing: 0) {
-                Spacer()
-                
-                ZStack {
-                    ForEach(Array(carouselMonths.enumerated()), id: \.offset) { index, month in
-                        CalendarCard(
-                            month: month,
-                            selectedDate: $selectedDate,
-                            dayHeaders: dayHeaders
-                        )
-                        .frame(width: cardWidth)
-                        .scaleEffect(scaleForIndex(index))
-                        .opacity(opacityForIndex(index))
-                        .offset(x: offsetForIndex(index, sideOffset: sideCardOffset) + dragOffset)
-                        .rotation3DEffect(
-                            .degrees(rotationForIndex(index)),
-                            axis: (x: 0, y: 1, z: 0),
-                            perspective: 0.5
-                        )
-                        .zIndex(zIndexForIndex(index))
-                    }
-                }
-                .frame(width: cardWidth)
-                
-                Spacer()
-            }
-            .gesture(
-                DragGesture()
-                    .onChanged { value in
-                        if !isAnimating {
-                            dragOffset = value.translation.width * 0.3 // Dampen the drag more
-                        }
-                    }
-                    .onEnded { value in
-                        if !isAnimating {
-                            handleSwipeGesture(translation: value.translation.width)
-                        }
-                    }
-            )
-        }
-        .frame(height: 350)
-        .animation(.spring(response: 0.7, dampingFraction: 0.8), value: dragOffset)
-        .animation(.easeInOut(duration: 0.3), value: isAnimating)
-    }
-    
-    // MARK: - Carousel Position Calculations
-    
-    private func offsetForIndex(_ index: Int, sideOffset: CGFloat) -> CGFloat {
-        let centerIndex = 1 // Current month is at index 1
-        return CGFloat(index - centerIndex) * sideOffset
-    }
-    
-    private func scaleForIndex(_ index: Int) -> CGFloat {
-        let centerIndex = 1
-        let distance = abs(index - centerIndex)
         
-        switch distance {
-        case 0: return 1.0      // Center card (current month)
-        case 1: return 0.85     // Side cards
-        default: return 0.7     // Far cards
-        }
-    }
-    
-    private func opacityForIndex(_ index: Int) -> Double {
-        let centerIndex = 1
-        let distance = abs(index - centerIndex)
-        
-        switch distance {
-        case 0: return 1.0      // Center card
-        case 1: return 0.7      // Side cards
-        default: return 0.4     // Far cards
-        }
-    }
-    
-    private func rotationForIndex(_ index: Int) -> Double {
-        let centerIndex = 1
-        let offset = index - centerIndex
-        return Double(offset) * -25 // Rotate side cards for 3D effect
-    }
-    
-    private func zIndexForIndex(_ index: Int) -> Double {
-        let centerIndex = 1
-        let distance = abs(index - centerIndex)
-        return Double(2 - distance) // Center card has highest z-index
-    }
-    
-    // MARK: - Gesture Handling
-    
-    private func handleSwipeGesture(translation: CGFloat) {
-        let swipeThreshold: CGFloat = 60
-        
-        guard abs(translation) > swipeThreshold else {
-            // Return to center if swipe wasn't strong enough
-            withAnimation(.spring(response: 0.5, dampingFraction: 0.8)) {
-                dragOffset = 0
-            }
-            return
-        }
-        
-        isAnimating = true
-        
-        // Determine direction
-        let direction: SwipeDirection = translation > 0 ? .previous : .next
-        
-        // Animate the transition
-        withAnimation(.easeInOut(duration: 0.4)) {
-            dragOffset = translation > 0 ? 400 : -400
-        }
-        
-        // Change month after a brief delay
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            onMonthChange(direction)
-            
-            // Reset position
-            dragOffset = 0
-            
-            // End animation
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                isAnimating = false
+        var monthIncrement: Int {
+            switch self {
+            case .next: return 1
+            case .previous: return -1
             }
         }
     }
-}
-
-// MARK: - Individual Calendar Card
-
-struct CalendarCard: View {
-    let month: Date
-    @Binding var selectedDate: Date
-    let dayHeaders: [(id: Int, letter: String)]
-    
-    private let calendar = Calendar.current
     
     private var monthYearString: String {
         let formatter = DateFormatter()
         formatter.dateFormat = "MMMM yyyy"
-        return formatter.string(from: month)
+        return formatter.string(from: currentMonth)
     }
     
     private var weeks: [[Date?]] {
-        guard let monthInterval = calendar.dateInterval(of: .month, for: month),
+        guard let monthInterval = calendar.dateInterval(of: .month, for: currentMonth),
               let monthFirstWeek = calendar.dateInterval(of: .weekOfYear, for: monthInterval.start),
               let monthLastWeek = calendar.dateInterval(of: .weekOfYear, for: monthInterval.end) else {
             return []
@@ -200,7 +59,7 @@ struct CalendarCard: View {
         
         var date = startDate
         while date < endDate {
-            let dateToAdd: Date? = calendar.isDate(date, equalTo: month, toGranularity: .month) ? date : nil
+            let dateToAdd: Date? = calendar.isDate(date, equalTo: currentMonth, toGranularity: .month) ? date : nil
             currentWeek.append(dateToAdd)
             
             if currentWeek.count == 7 {
@@ -216,12 +75,35 @@ struct CalendarCard: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Month/Year header
-            Text(monthYearString)
-                .font(.system(.title2, design: .serif))
-                .fontWeight(.bold)
-                .foregroundColor(.primary)
-                .padding(.bottom, 16)
+            // Month/Year header with navigation
+            HStack {
+                Button(action: {
+                    onMonthChange(.previous)
+                }) {
+                    Image(systemName: "chevron.left")
+                        .font(.title2)
+                        .foregroundColor(Color("Accent1"))
+                }
+                
+                Spacer()
+                
+                Text(monthYearString)
+                    .font(.system(.title2, design: .serif))
+                    .fontWeight(.bold)
+                    .foregroundColor(.primary)
+                
+                Spacer()
+                
+                Button(action: {
+                    onMonthChange(.next)
+                }) {
+                    Image(systemName: "chevron.right")
+                        .font(.title2)
+                        .foregroundColor(Color("Accent1"))
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.bottom, 16)
             
             // Day headers
             HStack {
@@ -234,9 +116,11 @@ struct CalendarCard: View {
                         .frame(width: 32)
                 }
             }
+            .padding(.horizontal, 24)
             .padding(.bottom, 8)
             
             Divider()
+                .padding(.horizontal, 24)
                 .padding(.bottom, 8)
             
             // Calendar grid
@@ -246,7 +130,7 @@ struct CalendarCard: View {
                         if let date = date {
                             CalendarDayView(
                                 date: date,
-                                currentMonth: month,
+                                currentMonth: currentMonth,
                                 selectedDate: $selectedDate
                             )
                         } else {
@@ -256,18 +140,9 @@ struct CalendarCard: View {
                     }
                 }
             }
+            .padding(.horizontal, 24)
             .padding(.bottom, 16)
-            
-            // Navigation dots
-            HStack(spacing: 6) {
-                ForEach(0..<3, id: \.self) { index in
-                    Circle()
-                        .fill(Color.gray.opacity(index == 1 ? 0.8 : 0.3))
-                        .frame(width: 6, height: 6)
-                }
-            }
         }
-        .padding(.horizontal, 24)
         .padding(.vertical, 24)
         .background(
             RoundedRectangle(cornerRadius: 24)
@@ -288,16 +163,21 @@ struct CalendarCard: View {
                 .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 10)
                 .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
         )
-    }
-}
-
-// Extension for the SwipeDirection enum
-extension CalendarGridView.SwipeDirection {
-    var monthIncrement: Int {
-        switch self {
-        case .next: return 1
-        case .previous: return -1
-        }
+        .padding(.horizontal, 30)
+        .gesture(
+            DragGesture()
+                .onEnded { value in
+                    let swipeThreshold: CGFloat = 50
+                    
+                    if value.translation.width > swipeThreshold {
+                        // Swipe right - go to previous month
+                        onMonthChange(.previous)
+                    } else if value.translation.width < -swipeThreshold {
+                        // Swipe left - go to next month
+                        onMonthChange(.next)
+                    }
+                }
+        )
     }
 }
 
