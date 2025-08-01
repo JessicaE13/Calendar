@@ -22,9 +22,9 @@ struct CalendarGridView: View {
     private let calendar = Calendar.current
     
     // Size configuration for calendar
-    private let daySize: CGFloat = 32
-    private let gridSpacing: CGFloat = 6
-    private let horizontalPadding: CGFloat = 18
+    private let daySize: CGFloat = 36
+    private let gridSpacing: CGFloat = 8
+    private let horizontalPadding: CGFloat = 16
     
     init(currentMonth: Date, selectedDate: Binding<Date>, onMonthChange: @escaping (SwipeDirection) -> Void, onDateJump: ((Date) -> Void)? = nil) {
         self.currentMonth = currentMonth
@@ -122,18 +122,16 @@ struct CalendarGridView: View {
                     showingDatePicker = true
                 }) {
                     Text(monthYearString)
-                        .font(.system(.title, design: .serif))
+                        .font(.system(.title3, design: .serif))
                         .fontWeight(.semibold)
                         .foregroundColor(.primary)
                 }
                 .buttonStyle(PlainButtonStyle())
-                .padding(.bottom, 12)
-                .padding(.leading, 24)
                 
                 Spacer()
                 
                 // Navigation controls grouped together
-                HStack(spacing: 8) {
+                HStack(spacing: 0) {
                     Button(action: {
                         onMonthChange(.previous)
                     }) {
@@ -156,19 +154,18 @@ struct CalendarGridView: View {
                             )
                     }
                     .buttonStyle(PlainButtonStyle())
-                    
-                    
-                    Button(action: {
-                        onMonthChange(.next)
-                    }) {
-                        Image(systemName: "chevron.right")
-                            .font(.title3)
-                            .foregroundColor(Color("Accent1"))
-                    }
                 }
-                .padding(.horizontal, horizontalPadding)
-                .padding(.bottom, 12)
+                
+                Button(action: {
+                    onMonthChange(.next)
+                }) {
+                    Image(systemName: "chevron.right")
+                        .font(.title3)
+                        .foregroundColor(Color("Accent1"))
+                }
             }
+            .padding(.horizontal, horizontalPadding)
+            .padding(.bottom, 12)
             
             // Day headers - more prominent
             HStack {
@@ -183,7 +180,6 @@ struct CalendarGridView: View {
             }
             .padding(.horizontal, horizontalPadding)
             .padding(.bottom, 6)
-            .padding(.top, 6)
             
             Divider()
                 .padding(.horizontal, horizontalPadding)
@@ -360,7 +356,7 @@ struct CompactCalendarDayView: View {
                     )
                 
                 Text(dayString)
-                    .font(.system(size: 13))
+                    .font(.system(size: 15))
                     .fontWeight(.medium)
                     .monospacedDigit()
                     .foregroundColor(textColor)
@@ -383,12 +379,7 @@ struct CompactCalendarDayView: View {
 #Preview {
     @Previewable @State var selectedDate = Date()
     ZStack {
-        LinearGradient(
-            gradient: Gradient(colors: [Color.blue.opacity(0.1), Color.purple.opacity(0.1)]),
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
-        .ignoresSafeArea()
+BackgroundView()
         
         CalendarGridView(
             currentMonth: Date(),
