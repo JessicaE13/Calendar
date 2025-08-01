@@ -16,13 +16,13 @@ struct CalendarGridView: View {
     
     // Use an array of tuples with unique identifiers
     private let dayHeaders = [
-        (id: 0, letter: "S"), // Sunday
-        (id: 1, letter: "M"), // Monday
-        (id: 2, letter: "T"), // Tuesday
-        (id: 3, letter: "W"), // Wednesday
-        (id: 4, letter: "T"), // Thursday
-        (id: 5, letter: "F"), // Friday
-        (id: 6, letter: "S")  // Saturday
+        (id: 0, letter: "Sun"), // Sunday
+        (id: 1, letter: "Mon"), // Monday
+        (id: 2, letter: "Tue"), // Tuesday
+        (id: 3, letter: "Wed"), // Wednesday
+        (id: 4, letter: "Thu"), // Thursday
+        (id: 5, letter: "Fri"), // Friday
+        (id: 6, letter: "Sat")  // Saturday
     ]
     
     private var weeks: [[Date?]] {
@@ -61,16 +61,16 @@ struct CalendarGridView: View {
             HStack {
                 ForEach(dayHeaders, id: \.id) { dayHeader in
                     Text(dayHeader.letter)
-                        .font(.system(size: 14))
-                        .textCase(.uppercase)
+                        .font(.system(size: 10))
+                      //  .textCase(.uppercase)
                         .fontWeight(.semibold)
                         .tracking(1.0)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(.primary)
                         .frame(maxWidth: .infinity)
                 }
             }
             .padding(.bottom, 4)
-            
+            Divider()
             
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 1) {
                 ForEach(weeks, id: \.self) { week in
