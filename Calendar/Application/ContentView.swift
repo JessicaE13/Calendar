@@ -4,8 +4,6 @@ import CloudKit
 struct ContentView: View {
     @State private var selectedDate = Date()
     @State private var currentMonth = Date()
-    @State private var calendarOffset: CGFloat = 0
-    @State private var isAnimatingMonthChange = false
     @StateObject private var itemManager = ItemManager()
     @StateObject private var cloudKitManager = CloudKitManager.shared
     @State private var showingCloudKitTest = false
@@ -16,6 +14,7 @@ struct ContentView: View {
             
             VStack(spacing: 0) {
                 
+                // Top status bar
                 HStack {
                     // CloudKit Status Indicator
                     HStack(spacing: 4) {
@@ -48,36 +47,32 @@ struct ContentView: View {
                     
                     Spacer()
                     
-                    Text(monthYearString(from: currentMonth))
-                        .font(.system(.title, design: .serif))
-                        .fontWeight(.bold)
-                        .multilineTextAlignment(.leading)
-                    
-                    Spacer()
+                    // Last sync indicator
+                    if let lastSync = itemManager.lastSyncDate {
+                        Text("Synced \(timeAgoString(from: lastSync))")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
-                .padding()
+                .padding(.horizontal)
+                .padding(.top)
                 
+                // Calendar with carousel functionality
                 CalendarGridView(
                     currentMonth: currentMonth,
-                    selectedDate: $selectedDate
+                    selectedDate: $selectedDate,
+                    onMonthChange: { direction in
+                        handleMonthChange(direction: direction)
+                    }
                 )
-                .gesture(
-                    DragGesture()
-                        .onEnded { value in
-                            if value.translation.width < -50 {
-                                animateMonthChange(direction: .next)
-                            } else if value.translation.width > 50 {
-                                animateMonthChange(direction: .previous)
-                            }
-                        }
-                )
+                .padding(.top, 20)
             
                 Text("Active container: \(CKContainer(identifier: "iCloud.com.estes.Dev").containerIdentifier ?? "nil")")
                 Text("Environment: Development")
                     .font(.caption)
                     .foregroundColor(.secondary)
 
-                
+                // Selected date display
                 HStack {
                     Text(selectedDateString())
                         .font(.system(.title3, design: .serif))
@@ -86,14 +81,6 @@ struct ContentView: View {
                         .padding(.vertical, 8)
                     
                     Spacer()
-                    
-                    // Last sync indicator
-                    if let lastSync = itemManager.lastSyncDate {
-                        Text("Synced \(timeAgoString(from: lastSync))")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .padding(.horizontal)
-                    }
                 }
                 .padding()
                 
@@ -118,6 +105,15 @@ struct ContentView: View {
         .onAppear {
             // Check CloudKit status when app appears
             cloudKitManager.checkAccountStatus()
+        }
+    }
+    
+    // MARK: - Month Navigation
+    
+    private func handleMonthChange(direction: CalendarGridView.SwipeDirection) {
+        let increment = direction.monthIncrement
+        if let newMonth = Calendar.current.date(byAdding: .month, value: increment, to: currentMonth) {
+            currentMonth = newMonth
         }
     }
     
@@ -174,62 +170,12 @@ struct ContentView: View {
         }
     }
     
-    // MARK: - Existing Methods
-    
-    private func previousMonth() {
-        currentMonth = Calendar.current.date(byAdding: .month, value: -1, to: currentMonth) ?? currentMonth
-    }
-    
-    private func nextMonth() {
-        currentMonth = Calendar.current.date(byAdding: .month, value: 1, to: currentMonth) ?? currentMonth
-    }
-    
-    private func monthYearString(from date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM yyyy"
-        return formatter.string(from: date)
-    }
+    // MARK: - Helper Methods
     
     private func selectedDateString() -> String {
         let formatter = DateFormatter()
         formatter.dateStyle = .full
         return formatter.string(from: selectedDate)
-    }
-    
-    enum SwipeDirection {
-        case next, previous
-    }
-    
-    private func animateMonthChange(direction: SwipeDirection) {
-        guard !isAnimatingMonthChange else { return }
-        isAnimatingMonthChange = true
-        
-        let directionMultiplier: CGFloat = (direction == .next) ? -1 : 1
-        
-        // Move out
-        withAnimation(.easeInOut(duration: 0.25)) {
-            calendarOffset = directionMultiplier * UIScreen.main.bounds.width
-            isAnimatingMonthChange = true
-        }
-        
-        // Wait for animation, then switch month and animate back in
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-            if direction == .next {
-                nextMonth()
-            } else {
-                previousMonth()
-            }
-            calendarOffset = -directionMultiplier * UIScreen.main.bounds.width
-            
-            // Animate back in
-            withAnimation(.easeInOut(duration: 0.25)) {
-                calendarOffset = 0
-            }
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                isAnimatingMonthChange = false
-            }
-        }
     }
 }
 
