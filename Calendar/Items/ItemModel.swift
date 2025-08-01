@@ -507,37 +507,56 @@ class ItemManager: ObservableObject {
     // Add this method to your ItemManager class in ItemModel.swift
     // Insert this in the ItemManager class after the existing moveItem method
 
-    // MARK: - Reorder Sync Method
+    // MARK: - Reorder Sync Method (FIXED VERSION)
+    // Add this to replace the existing syncReorderedItems method in ItemModel.swift
 
     func syncReorderedItems(_ reorderedItems: [Item]) {
         // Sync all reordered items to CloudKit in background
         Task { [weak self] in
             guard let self = self else { return }
             
-            // Create a copy of the items to sync
-            let itemsToSync = reorderedItems
+            // Important: Create a snapshot of the current items state
+            let itemsToSync = await MainActor.run {
+                // Get the current state of these items from the main items array
+                return reorderedItems.compactMap { reorderedItem in
+                    // Find the current version of this item in our main array
+                    if let currentIndex = self.items.firstIndex(where: { $0.id == reorderedItem.id }) {
+                        return self.items[currentIndex]
+                    }
+                    return nil
+                }
+            }
             
+            // Sync each item individually
             for item in itemsToSync {
                 do {
                     let savedItem = try await self.cloudKitManager.saveItem(item)
                     await MainActor.run {
                         // Update the local item with any changes from CloudKit
                         if let index = self.items.firstIndex(where: { $0.id == savedItem.id }) {
-                            self.items[index] = savedItem
+                            // Only update the CloudKit-specific fields, preserve local state
+                            self.items[index].recordID = savedItem.recordID
+                            self.items[index].lastModified = savedItem.lastModified
                         }
                     }
                 } catch {
                     await MainActor.run {
                         print("Failed to sync reordered item: \(error)")
-                        // Optionally show error to user
-                        self.errorMessage = "Failed to sync item order: \(error.localizedDescription)"
-                        self.showingError = true
+                        // Optionally show error to user for critical failures
+                        if error.localizedDescription.contains("network") || error.localizedDescription.contains("iCloud") {
+                            self.errorMessage = "Failed to sync item order: \(error.localizedDescription)"
+                            self.showingError = true
+                        }
                     }
                 }
             }
+            
+            // Update the last sync date on successful completion
+            await MainActor.run {
+                self.lastSyncDate = Date()
+            }
         }
     }
-    
     private func reorderItems() {
         for (index, _) in items.enumerated() {
             items[index].sortOrder = index

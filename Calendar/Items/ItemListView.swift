@@ -2,7 +2,7 @@
 //  ItemListView.swift
 //  Calendar
 //
-//  Updated with drag-to-reorder functionality
+//  Updated with FIXED drag-to-reorder functionality
 //
 
 import SwiftUI
@@ -123,23 +123,31 @@ struct ItemListView: View {
         }
     }
     
+    // FIXED: This is the corrected moveItems function
     private func moveItems(from source: IndexSet, to destination: Int) {
-        // Get the current items for the selected date
-        var currentItems = itemsForSelectedDate
+        // Get the items for this specific date
+        let itemsForDate = itemsForSelectedDate
         
-        // Move the items in the local array
-        currentItems.move(fromOffsets: source, toOffset: destination)
+        // Create a mutable copy
+        var reorderedItems = itemsForDate
         
-        // Update sort orders for all items on this date
-        for (index, item) in currentItems.enumerated() {
+        // Perform the move operation on the copy
+        reorderedItems.move(fromOffsets: source, toOffset: destination)
+        
+        // Now update the sort orders and last modified dates
+        for (newIndex, item) in reorderedItems.enumerated() {
+            // Find this item in the main items array and update it
             if let globalIndex = itemManager.items.firstIndex(where: { $0.id == item.id }) {
-                itemManager.items[globalIndex].sortOrder = index
+                itemManager.items[globalIndex].sortOrder = newIndex
                 itemManager.items[globalIndex].lastModified = Date()
             }
         }
         
-        // Sync the changes to CloudKit
-        itemManager.syncReorderedItems(currentItems)
+        // Force the UI to update by triggering objectWillChange
+        itemManager.objectWillChange.send()
+        
+        // Sync the reordered items to CloudKit in the background
+        itemManager.syncReorderedItems(reorderedItems)
     }
     
     private func deleteItems(offsets: IndexSet) {
