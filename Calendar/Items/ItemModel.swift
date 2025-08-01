@@ -2,7 +2,7 @@
 //  ItemModel.swift
 //  Calendar
 //
-//  Minimal fix - keep CloudKit record type as "Item" but use CalendarItem as Swift type
+//  Enhanced with smart chronological/manual ordering system
 //
 
 import Foundation
@@ -26,7 +26,7 @@ struct ChecklistItem: Identifiable, Codable {
     }
 }
 
-// MARK: - Item Model (keeping original name to avoid massive refactoring)
+// MARK: - Item Model (with smart ordering)
 
 struct Item: Identifiable, Codable {
     var id = UUID()
@@ -40,6 +40,9 @@ struct Item: Identifiable, Codable {
     var recordID: CKRecord.ID?
     var lastModified: Date = Date()
     
+    // NEW: Track if this item's order has been manually set for this date
+    var hasCustomOrderForDate: [String: Bool] = [:] // dateString -> hasCustomOrder
+    
     init(title: String, description: String = "", assignedDate: Date = Date(), assignedTime: Date? = nil, sortOrder: Int = 0) {
         self.title = title
         self.description = description
@@ -49,9 +52,26 @@ struct Item: Identifiable, Codable {
         self.lastModified = Date()
     }
     
+    // Helper to get/set custom order flag for a specific date
+    func hasCustomOrder(for date: Date) -> Bool {
+        let dateKey = dateKey(for: date)
+        return hasCustomOrderForDate[dateKey] ?? false
+    }
+    
+    mutating func setCustomOrder(for date: Date, hasCustomOrder: Bool) {
+        let dateKey = dateKey(for: date)
+        hasCustomOrderForDate[dateKey] = hasCustomOrder
+    }
+    
+    private func dateKey(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
+    
     // Custom coding keys to handle CloudKit fields
     enum CodingKeys: String, CodingKey {
-        case id, title, description, isCompleted, assignedDate, assignedTime, sortOrder, checklist, lastModified
+        case id, title, description, isCompleted, assignedDate, assignedTime, sortOrder, checklist, lastModified, hasCustomOrderForDate
         // recordID is not encoded/decoded
     }
 }
@@ -79,6 +99,14 @@ extension Item {
             } catch {
                 print("Failed to encode checklist: \(error)")
             }
+        }
+        
+        // NEW: Store custom order data
+        do {
+            let customOrderData = try JSONEncoder().encode(hasCustomOrderForDate)
+            record["customOrderData"] = customOrderData
+        } catch {
+            print("Failed to encode custom order data: \(error)")
         }
         
         return record
@@ -116,6 +144,16 @@ extension Item {
             } catch {
                 print("Failed to decode checklist: \(error)")
                 item.checklist = []
+            }
+        }
+        
+        // NEW: Decode custom order data
+        if let customOrderData = record["customOrderData"] as? Data {
+            do {
+                item.hasCustomOrderForDate = try JSONDecoder().decode([String: Bool].self, from: customOrderData)
+            } catch {
+                print("Failed to decode custom order data: \(error)")
+                item.hasCustomOrderForDate = [:]
             }
         }
         
@@ -257,7 +295,7 @@ class ItemManager: ObservableObject {
         Task { [weak self] in
             guard let self = self else { return }
             
-            // Check if CloudKit is available - remove 'await' since this is just a property access
+            // Check if CloudKit is available
             let isAvailable = self.cloudKitManager.isAccountAvailable
             guard isAvailable else { return }
             
@@ -301,6 +339,115 @@ class ItemManager: ObservableObject {
         }
         
         self.items = mergedItems.sorted { $0.sortOrder < $1.sortOrder }
+    }
+    
+    // MARK: - Smart Ordering Methods
+    
+    // NEW: Smart ordering method that respects user preferences
+    func itemsForDate(_ date: Date) -> [Item] {
+        let calendar = Calendar.current
+        let targetDate = calendar.startOfDay(for: date)
+        
+        let itemsForDate = items.filter { item in
+            calendar.isDate(item.assignedDate, equalTo: targetDate, toGranularity: .day)
+        }
+        
+        // Check if ANY item for this date has been manually reordered
+        let hasAnyCustomOrder = itemsForDate.contains { $0.hasCustomOrder(for: date) }
+        
+        if hasAnyCustomOrder {
+            // Use manual ordering (sort by sortOrder)
+            return itemsForDate.sorted { $0.sortOrder < $1.sortOrder }
+        } else {
+            // Use chronological ordering (time first, then sort order)
+            return itemsForDate.sorted { item1, item2 in
+                if let time1 = item1.assignedTime, let time2 = item2.assignedTime {
+                    return time1 < time2
+                } else if item1.assignedTime != nil && item2.assignedTime == nil {
+                    return true // Timed items come first
+                } else if item1.assignedTime == nil && item2.assignedTime != nil {
+                    return false // Timed items come first
+                } else {
+                    // Both have no time, sort by creation order (sortOrder)
+                    return item1.sortOrder < item2.sortOrder
+                }
+            }
+        }
+    }
+    
+    // NEW: Handle manual reordering
+    func handleManualReorder(for date: Date, reorderedItems: [Item]) {
+        // Update sort orders and mark as manually ordered
+        for (newIndex, item) in reorderedItems.enumerated() {
+            if let globalIndex = items.firstIndex(where: { $0.id == item.id }) {
+                items[globalIndex].sortOrder = newIndex
+                items[globalIndex].setCustomOrder(for: date, hasCustomOrder: true)
+                items[globalIndex].lastModified = Date()
+            }
+        }
+        
+        // Sync to CloudKit in background
+        Task { [weak self] in
+            guard let self = self else { return }
+            
+            // Create a snapshot of the items to sync
+            let itemsToSync = await MainActor.run {
+                return reorderedItems.compactMap { reorderedItem in
+                    return self.items.first(where: { $0.id == reorderedItem.id })
+                }
+            }
+            
+            // Sync each item individually
+            for item in itemsToSync {
+                do {
+                    let savedItem = try await self.cloudKitManager.saveItem(item)
+                    await MainActor.run {
+                        if let idx = self.items.firstIndex(where: { $0.id == savedItem.id }) {
+                            self.items[idx] = savedItem
+                        }
+                    }
+                } catch {
+                    await MainActor.run {
+                        print("Failed to sync reordered item: \(error)")
+                    }
+                }
+            }
+            
+            await MainActor.run {
+                self.lastSyncDate = Date()
+            }
+        }
+    }
+    
+    // NEW: Reset to chronological order
+    func resetToChronologicalOrder(for date: Date) {
+        let calendar = Calendar.current
+        let targetDate = calendar.startOfDay(for: date)
+        
+        // Find all items for this date and reset their custom order flag
+        for index in items.indices {
+            if calendar.isDate(items[index].assignedDate, equalTo: targetDate, toGranularity: .day) {
+                items[index].setCustomOrder(for: date, hasCustomOrder: false)
+                items[index].lastModified = Date()
+            }
+        }
+        
+        // Trigger UI update
+        objectWillChange.send()
+        
+        // Sync to CloudKit
+        let itemsToSync = items.filter { calendar.isDate($0.assignedDate, equalTo: targetDate, toGranularity: .day) }
+        Task { [weak self] in
+            guard let self = self else { return }
+            
+            for item in itemsToSync {
+                do {
+                    _ = try await self.cloudKitManager.saveItem(item)
+                } catch {
+                    print("Failed to sync chronological reset: \(error)")
+                }
+            }
+        }
     }
     
     // MARK: - Item Management Methods
@@ -504,82 +651,20 @@ class ItemManager: ObservableObject {
             }
         }
     }
-    // Add this method to your ItemManager class in ItemModel.swift
-    // Insert this in the ItemManager class after the existing moveItem method
-
-    // MARK: - Reorder Sync Method (FIXED VERSION)
-    // Add this to replace the existing syncReorderedItems method in ItemModel.swift
-
+    
+    // MARK: - Reorder Sync Method (UPDATED)
     func syncReorderedItems(_ reorderedItems: [Item]) {
-        // Sync all reordered items to CloudKit in background
-        Task { [weak self] in
-            guard let self = self else { return }
-            
-            // Important: Create a snapshot of the current items state
-            let itemsToSync = await MainActor.run {
-                // Get the current state of these items from the main items array
-                return reorderedItems.compactMap { reorderedItem in
-                    // Find the current version of this item in our main array
-                    if let currentIndex = self.items.firstIndex(where: { $0.id == reorderedItem.id }) {
-                        return self.items[currentIndex]
-                    }
-                    return nil
-                }
-            }
-            
-            // Sync each item individually
-            for item in itemsToSync {
-                do {
-                    let savedItem = try await self.cloudKitManager.saveItem(item)
-                    await MainActor.run {
-                        // Update the local item with any changes from CloudKit
-                        if let index = self.items.firstIndex(where: { $0.id == savedItem.id }) {
-                            // Only update the CloudKit-specific fields, preserve local state
-                            self.items[index].recordID = savedItem.recordID
-                            self.items[index].lastModified = savedItem.lastModified
-                        }
-                    }
-                } catch {
-                    await MainActor.run {
-                        print("Failed to sync reordered item: \(error)")
-                        // Optionally show error to user for critical failures
-                        if error.localizedDescription.contains("network") || error.localizedDescription.contains("iCloud") {
-                            self.errorMessage = "Failed to sync item order: \(error.localizedDescription)"
-                            self.showingError = true
-                        }
-                    }
-                }
-            }
-            
-            // Update the last sync date on successful completion
-            await MainActor.run {
-                self.lastSyncDate = Date()
-            }
+        // This method is now replaced by handleManualReorder
+        // Keeping for compatibility, but redirecting to new method
+        if let firstItem = reorderedItems.first {
+            handleManualReorder(for: firstItem.assignedDate, reorderedItems: reorderedItems)
         }
     }
+    
     private func reorderItems() {
         for (index, _) in items.enumerated() {
             items[index].sortOrder = index
             items[index].lastModified = Date()
-        }
-    }
-    
-    func itemsForDate(_ date: Date) -> [Item] {
-        let calendar = Calendar.current
-        let targetDate = calendar.startOfDay(for: date)
-        
-        return items.filter { item in
-            calendar.isDate(item.assignedDate, equalTo: targetDate, toGranularity: .day)
-        }.sorted { item1, item2 in
-            if let time1 = item1.assignedTime, let time2 = item2.assignedTime {
-                return time1 < time2
-            } else if item1.assignedTime != nil && item2.assignedTime == nil {
-                return true
-            } else if item1.assignedTime == nil && item2.assignedTime != nil {
-                return false
-            } else {
-                return item1.sortOrder < item2.sortOrder
-            }
         }
     }
     
