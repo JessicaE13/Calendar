@@ -2,7 +2,7 @@
 //  CalendarGridView.swift
 //  Calendar
 //
-//  Updated to fit background frame to calendar content
+//  Updated to be smaller and more compact
 //
 
 import SwiftUI
@@ -21,6 +21,11 @@ struct CalendarGridView: View {
     
     private let calendar = Calendar.current
     
+    // Size configuration for smaller calendar
+    private let daySize: CGFloat = 26
+    private let gridSpacing: CGFloat = 5
+    private let horizontalPadding: CGFloat = 18
+    
     init(currentMonth: Date, selectedDate: Binding<Date>, onMonthChange: @escaping (SwipeDirection) -> Void, onDateJump: ((Date) -> Void)? = nil) {
         self.currentMonth = currentMonth
         self._selectedDate = selectedDate
@@ -31,13 +36,13 @@ struct CalendarGridView: View {
     
     // Use an array of tuples with unique identifiers
     private let dayHeaders = [
-        (id: 0, letter: "Sun"), // Sunday
-        (id: 1, letter: "Mon"), // Monday
-        (id: 2, letter: "Tue"), // Tuesday
-        (id: 3, letter: "Wed"), // Wednesday
-        (id: 4, letter: "Thu"), // Thursday
-        (id: 5, letter: "Fri"), // Friday
-        (id: 6, letter: "Sat")  // Saturday
+        (id: 0, letter: "S"), // Sunday - shortened
+        (id: 1, letter: "M"), // Monday
+        (id: 2, letter: "T"), // Tuesday
+        (id: 3, letter: "W"), // Wednesday
+        (id: 4, letter: "T"), // Thursday
+        (id: 5, letter: "F"), // Friday
+        (id: 6, letter: "S")  // Saturday
     ]
     
     enum SwipeDirection {
@@ -100,13 +105,13 @@ struct CalendarGridView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Month/Year header with navigation
+            // Month/Year header with navigation - more compact
             HStack {
                 Button(action: {
                     onMonthChange(.previous)
                 }) {
                     Image(systemName: "chevron.left")
-                        .font(.title2)
+                        .font(.title3) // Smaller than title2
                         .foregroundColor(Color("Accent1"))
                 }
                 
@@ -117,8 +122,8 @@ struct CalendarGridView: View {
                     showingDatePicker = true
                 }) {
                     Text(monthYearString)
-                        .font(.system(.title2, design: .serif))
-                        .fontWeight(.bold)
+                        .font(.system(.title3, design: .serif)) // Smaller font
+                        .fontWeight(.semibold) // Reduced weight
                         .foregroundColor(.primary)
                 }
                 .buttonStyle(PlainButtonStyle())
@@ -129,53 +134,54 @@ struct CalendarGridView: View {
                     onMonthChange(.next)
                 }) {
                     Image(systemName: "chevron.right")
-                        .font(.title2)
+                        .font(.title3) // Smaller than title2
                         .foregroundColor(Color("Accent1"))
                 }
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 16)
+            .padding(.horizontal, horizontalPadding)
+            .padding(.bottom, 12) // Reduced padding
             
-            // Day headers
+            // Day headers - more compact
             HStack {
                 ForEach(dayHeaders, id: \.id) { dayHeader in
                     Text(dayHeader.letter)
-                        .font(.system(size: 10))
-                        .fontWeight(.semibold)
-                        .tracking(0.8)
+                        .font(.system(size: 9)) // Smaller font
+                        .fontWeight(.medium) // Reduced weight
+                        .tracking(0.5) // Reduced tracking
                         .foregroundColor(.secondary)
-                        .frame(width: 32)
+                        .frame(width: daySize)
                 }
             }
-            .padding(.horizontal, 24)
-            .padding(.bottom, 8)
+            .padding(.horizontal, horizontalPadding)
+            .padding(.bottom, 6) // Reduced padding
             
             Divider()
-                .padding(.horizontal, 24)
-                .padding(.bottom, 8)
+                .padding(.horizontal, horizontalPadding)
+                .padding(.bottom, 6) // Reduced padding
             
-            // Calendar grid
-            LazyVGrid(columns: Array(repeating: GridItem(.fixed(32)), count: 7), spacing: 8) {
+            // Calendar grid - smaller and more compact
+            LazyVGrid(columns: Array(repeating: GridItem(.fixed(daySize)), count: 7), spacing: gridSpacing) {
                 ForEach(weeks, id: \.self) { week in
                     ForEach(Array(week.enumerated()), id: \.offset) { index, date in
                         if let date = date {
-                            CalendarDayView(
+                            CompactCalendarDayView(
                                 date: date,
                                 currentMonth: currentMonth,
-                                selectedDate: $selectedDate
+                                selectedDate: $selectedDate,
+                                daySize: daySize
                             )
                         } else {
                             Color.clear
-                                .frame(width: 32, height: 32)
+                                .frame(width: daySize, height: daySize)
                         }
                     }
                 }
             }
-            .padding(.horizontal, 24)
+            .padding(.horizontal, horizontalPadding)
         }
-        .padding(.vertical, 16)
+        .padding(.vertical, 12) // Reduced padding
         .background(
-            RoundedRectangle(cornerRadius: 24)
+            RoundedRectangle(cornerRadius: 20) // Slightly smaller corner radius
                 .fill(
                     LinearGradient(
                         gradient: Gradient(colors: [
@@ -187,11 +193,11 @@ struct CalendarGridView: View {
                     )
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 24)
+                    RoundedRectangle(cornerRadius: 20)
                         .stroke(Color.white.opacity(0.5), lineWidth: 1)
                 )
-                .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 10)
-                .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
+                .shadow(color: .black.opacity(0.12), radius: 15, x: 0, y: 8) // Reduced shadow
+                .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
         )
         .fixedSize(horizontal: true, vertical: false)
         .frame(maxWidth: .infinity)
@@ -302,6 +308,63 @@ struct CalendarGridView: View {
             }
             .presentationDetents([.height(350)])
         }
+    }
+}
+
+// Compact version of CalendarDayView
+struct CompactCalendarDayView: View {
+    let date: Date
+    let currentMonth: Date
+    @Binding var selectedDate: Date
+    let daySize: CGFloat
+    
+    private let calendar = Calendar.current
+    
+    private var dayString: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d"
+        return formatter.string(from: date)
+    }
+    
+    private var isSelected: Bool {
+        calendar.isDate(date, equalTo: selectedDate, toGranularity: .day)
+    }
+    
+    private var isToday: Bool {
+        calendar.isDateInToday(date)
+    }
+    
+    var body: some View {
+        Button(action: {
+            selectedDate = date
+        }) {
+            ZStack {
+                Circle()
+                    .fill(backgroundColor)
+                    .frame(width: daySize, height: daySize)
+                    .overlay(
+                        Circle()
+                            .stroke(Color("Accent1"), lineWidth: isToday ? 1.0 : 0)
+                    )
+                
+                Text(dayString)
+                    .font(.system(size: 11)) // Smaller font
+                    .fontWeight(.medium) // Reduced weight
+                    .monospacedDigit()
+                    .foregroundColor(textColor)
+                    .frame(width: daySize - 6)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+    
+    private var textColor: Color {
+        return isSelected ? .white :  .primary.opacity(0.7)
+    }
+    
+    private var backgroundColor: Color {
+        return isSelected ? Color("Accent1") : .clear
     }
 }
 

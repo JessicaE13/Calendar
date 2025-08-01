@@ -14,49 +14,49 @@ struct ContentView: View {
             
             VStack(spacing: 0) {
                 
-                // Top status bar
-                HStack {
-                    // CloudKit Status Indicator
-                    HStack(spacing: 4) {
-                        Image(systemName: cloudKitStatusIcon)
-                            .foregroundColor(cloudKitStatusColor)
-                            .font(.caption)
-                        
-                        if itemManager.isLoading {
-                            ProgressView()
-                                .scaleEffect(0.6)
-                        }
-                    }
-                    .onTapGesture {
-                        if cloudKitManager.isAccountAvailable {
-                            itemManager.forceSyncWithCloudKit()
-                        } else {
-                            showingCloudKitTest = true
-                        }
-                    }
-                    
-                    // CloudKit Test Button (keep for debugging)
-                    Button("CloudKit Test") {
-                        showingCloudKitTest = true
-                    }
-                    .font(.caption)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.blue.opacity(0.2))
-                    .cornerRadius(4)
-                    
-                    Spacer()
-                    
-                    // Last sync indicator
-                    if let lastSync = itemManager.lastSyncDate {
-                        Text("Synced \(timeAgoString(from: lastSync))")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                .padding(.horizontal)
-                .padding(.top)
-                
+//                // Top status bar
+//                HStack {
+////                    // CloudKit Status Indicator
+////                    HStack(spacing: 4) {
+////                        Image(systemName: cloudKitStatusIcon)
+////                            .foregroundColor(cloudKitStatusColor)
+////                            .font(.caption)
+////                        
+////                        if itemManager.isLoading {
+////                            ProgressView()
+////                                .scaleEffect(0.6)
+////                        }
+////                    }
+////                    .onTapGesture {
+////                        if cloudKitManager.isAccountAvailable {
+////                            itemManager.forceSyncWithCloudKit()
+////                        } else {
+////                            showingCloudKitTest = true
+////                        }
+////                    }
+////                    
+////                    // CloudKit Test Button (keep for debugging)
+////                    Button("CloudKit Test") {
+////                        showingCloudKitTest = true
+////                    }
+////                    .font(.caption)
+////                    .padding(.horizontal, 8)
+////                    .padding(.vertical, 4)
+////                    .background(Color.blue.opacity(0.2))
+////                    .cornerRadius(4)
+//                    
+//                    Spacer()
+//                    
+//                    // Last sync indicator
+//                    if let lastSync = itemManager.lastSyncDate {
+//                        Text("Synced \(timeAgoString(from: lastSync))")
+//                            .font(.caption)
+//                            .foregroundColor(.secondary)
+//                    }
+//                }
+//                .padding(.horizontal)
+//                .padding(.top)
+//                
                 // Calendar with carousel functionality
                 CalendarGridView(
                     currentMonth: currentMonth,
@@ -67,10 +67,10 @@ struct ContentView: View {
                 )
                 .padding(.top, 20)
             
-                Text("Active container: \(CKContainer(identifier: "iCloud.com.estes.Dev").containerIdentifier ?? "nil")")
-                Text("Environment: Development")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+//                Text("Active container: \(CKContainer(identifier: "iCloud.com.estes.Dev").containerIdentifier ?? "nil")")
+//                Text("Environment: Development")
+//                    .font(.caption)
+//                    .foregroundColor(.secondary)
 
                 // Selected date display
                 HStack {
