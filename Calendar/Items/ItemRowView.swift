@@ -3,7 +3,7 @@
 //  Calendar
 //
 //  Created by Jessica Estes on 7/29/25.
-//  Minimal fix - keep using Item type
+//  Updated with inline editing and edit mode functionality
 //
 
 import SwiftUI
@@ -106,119 +106,179 @@ struct ItemDetailsView: View {
     @ObservedObject var itemManager: ItemManager
     @Binding var isPresented: Bool
     
-    @State private var showingNameEditor = false
-    @State private var showingDescriptionEditor = false
-    @State private var showingDateEditor = false
-    @State private var showingTimeEditor = false
+    @State private var isEditMode = false
+    @State private var editedTitle = ""
+    @State private var editedDescription = ""
+    @State private var editedDate = Date()
+    @State private var editedTime = Date()
+    @State private var hasTime = false
     @State private var showingAddChecklistItem = false
     @State private var newChecklistItemTitle = ""
+    @State private var editedChecklist: [ChecklistItem] = []
     
     private var formattedDate: String {
         let formatter = DateFormatter()
         let calendar = Calendar.current
+        let dateToFormat = isEditMode ? editedDate : item.assignedDate
         
-        if calendar.isDateInToday(item.assignedDate) {
+        if calendar.isDateInToday(dateToFormat) {
             return "Today"
-        } else if calendar.isDate(item.assignedDate, equalTo: calendar.date(byAdding: .day, value: 1, to: Date()) ?? Date(), toGranularity: .day) {
+        } else if calendar.isDate(dateToFormat, equalTo: calendar.date(byAdding: .day, value: 1, to: Date()) ?? Date(), toGranularity: .day) {
             return "Tomorrow"
-        } else if calendar.isDate(item.assignedDate, equalTo: calendar.date(byAdding: .day, value: -1, to: Date()) ?? Date(), toGranularity: .day) {
+        } else if calendar.isDate(dateToFormat, equalTo: calendar.date(byAdding: .day, value: -1, to: Date()) ?? Date(), toGranularity: .day) {
             return "Yesterday"
         } else {
             formatter.dateStyle = .medium
-            return formatter.string(from: item.assignedDate)
+            return formatter.string(from: dateToFormat)
         }
     }
     
     private var formattedTime: String {
-        guard let time = item.assignedTime else { return "No time set" }
-        let formatter = DateFormatter()
-        formatter.timeStyle = .short
-        return formatter.string(from: time)
+        if isEditMode {
+            if hasTime {
+                let formatter = DateFormatter()
+                formatter.timeStyle = .short
+                return formatter.string(from: editedTime)
+            } else {
+                return "No time set"
+            }
+        } else {
+            guard let time = item.assignedTime else { return "No time set" }
+            let formatter = DateFormatter()
+            formatter.timeStyle = .short
+            return formatter.string(from: time)
+        }
     }
     
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                // Item completion toggle at the top
-                HStack {
-                    Button(action: {
-                        itemManager.toggleItemCompletion(item)
-                    }) {
-                        HStack(spacing: 12) {
-                            Image(systemName: item.isCompleted ? "checkmark.circle.fill" : "circle")
-                                .font(.title2)
-                                .foregroundColor(item.isCompleted ? .green : .gray)
-                            
-                            Text(item.isCompleted ? "Completed" : "Mark as complete")
-                                .font(.system(size: 16))
-                                .foregroundColor(item.isCompleted ? .green : .primary)
-                        }
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    
-                    Spacer()
-                }
-                .padding(.horizontal, 20)
-                .padding(.vertical, 16)
-                .background(Color.white.opacity(0.5))
-                
                 ScrollView {
                     VStack(spacing: 24) {
                         // Item Name Section
                         VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                Text("Name")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.secondary)
-                                    .textCase(.uppercase)
-                                    .tracking(1)
-                                
-                                Spacer()
-                                
-                                Button("Edit") {
-                                    showingNameEditor = true
-                                }
+                            Text("Name")
                                 .font(.system(size: 14))
-                                .foregroundColor(Color("Accent1"))
-                            }
+                                .foregroundColor(.secondary)
+                                .textCase(.uppercase)
+                                .tracking(1)
                             
-                            Text(item.title)
-                                .font(.system(size: 20))
-                                .fontWeight(.medium)
-                                .multilineTextAlignment(.leading)
-                                .frame(maxWidth: .infinity, alignment: .leading)
+                            if isEditMode {
+                                TextField("Item name", text: $editedTitle)
+                                    .font(.system(size: 20))
+                                    .fontWeight(.medium)
+                                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                            } else {
+                                Text(item.title)
+                                    .font(.system(size: 20))
+                                    .fontWeight(.medium)
+                                    .multilineTextAlignment(.leading)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        enterEditMode()
+                                    }
+                            }
                         }
                         
                         Divider()
                         
-                        // Description Section
+                        // Description & Checklist Section
                         VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                Text("Description")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.secondary)
-                                    .textCase(.uppercase)
-                                    .tracking(1)
-                                
-                                Spacer()
-                                
-                                Button("Edit") {
-                                    showingDescriptionEditor = true
-                                }
+                            Text("Description & Checklist")
                                 .font(.system(size: 14))
-                                .foregroundColor(Color("Accent1"))
-                            }
+                                .foregroundColor(.secondary)
+                                .textCase(.uppercase)
+                                .tracking(1)
                             
-                            if item.description.isEmpty {
-                                Text("No description")
-                                    .font(.system(size: 16))
-                                    .foregroundColor(.secondary)
-                                    .italic()
+                            if isEditMode {
+                                // Edit mode view
+                                VStack(spacing: 0) {
+                                    // Add Subtask button
+                                    Button("Add Subtask") {
+                                        showingAddChecklistItem = true
+                                    }
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                                    .background(Color.black)
+                                    .foregroundColor(.white)
+                                    .font(.system(size: 16, weight: .medium))
+                                    
+                                    // Description and subtasks
+                                    VStack(alignment: .leading, spacing: 12) {
+                                        TextField("Add notes, meeting links or phone numbers...", text: $editedDescription, axis: .vertical)
+                                            .font(.system(size: 16))
+                                            .lineLimit(2...6)
+                                        
+                                        ForEach(editedChecklist.sorted { $0.sortOrder < $1.sortOrder }) { checklistItem in
+                                            HStack(spacing: 8) {
+                                                Button(action: {
+                                                    toggleEditedChecklistItem(checklistItem)
+                                                }) {
+                                                    Image(systemName: checklistItem.isCompleted ? "checkmark.square.fill" : "square")
+                                                        .foregroundColor(checklistItem.isCompleted ? .green : .gray)
+                                                }
+                                                
+                                                Text(checklistItem.title)
+                                                    .strikethrough(checklistItem.isCompleted)
+                                                    .foregroundColor(checklistItem.isCompleted ? .secondary : .primary)
+                                                
+                                                Spacer()
+                                                
+                                                Button(action: {
+                                                    deleteEditedChecklistItem(checklistItem)
+                                                }) {
+                                                    Image(systemName: "xmark.circle.fill")
+                                                        .foregroundColor(.red.opacity(0.6))
+                                                }
+                                            }
+                                        }
+                                    }
+                                    .padding(16)
+                                    .background(Color.white.opacity(0.8))
+                                }
+                                .cornerRadius(12)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                )
                             } else {
-                                Text(item.description)
-                                    .font(.system(size: 16))
-                                    .multilineTextAlignment(.leading)
+                                // Read-only view
+                                Button(action: { enterEditMode() }) {
+                                    VStack(alignment: .leading, spacing: 12) {
+                                        if !item.description.isEmpty {
+                                            Text(item.description)
+                                                .font(.system(size: 16))
+                                                .multilineTextAlignment(.leading)
+                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                        }
+                                        
+                                        ForEach(item.checklist.sorted { $0.sortOrder < $1.sortOrder }) { checklistItem in
+                                            HStack(spacing: 8) {
+                                                Image(systemName: checklistItem.isCompleted ? "checkmark.square.fill" : "square")
+                                                    .foregroundColor(checklistItem.isCompleted ? .green : .gray)
+                                                
+                                                Text(checklistItem.title)
+                                                    .strikethrough(checklistItem.isCompleted)
+                                                    .foregroundColor(checklistItem.isCompleted ? .secondary : .primary)
+                                                
+                                                Spacer()
+                                            }
+                                        }
+                                        
+                                        if item.description.isEmpty && item.checklist.isEmpty {
+                                            Text("No description or subtasks")
+                                                .font(.system(size: 16))
+                                                .foregroundColor(.secondary)
+                                                .italic()
+                                        }
+                                    }
+                                    .padding(16)
+                                    .background(Color.white.opacity(0.5))
+                                    .cornerRadius(12)
                                     .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                                .buttonStyle(PlainButtonStyle())
                             }
                         }
                         
@@ -226,28 +286,28 @@ struct ItemDetailsView: View {
                         
                         // Date Section
                         VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                Text("Date")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.secondary)
-                                    .textCase(.uppercase)
-                                    .tracking(1)
-                                
-                                Spacer()
-                                
-                                Button("Edit") {
-                                    showingDateEditor = true
-                                }
+                            Text("Date")
                                 .font(.system(size: 14))
-                                .foregroundColor(Color("Accent1"))
-                            }
+                                .foregroundColor(.secondary)
+                                .textCase(.uppercase)
+                                .tracking(1)
                             
                             HStack {
                                 Image(systemName: "calendar")
                                     .foregroundColor(.secondary)
                                 
-                                Text(formattedDate)
-                                    .font(.system(size: 18))
+                                if isEditMode {
+                                    DatePicker("Date", selection: $editedDate, displayedComponents: .date)
+                                        .labelsHidden()
+                                        .font(.system(size: 18))
+                                } else {
+                                    Text(formattedDate)
+                                        .font(.system(size: 18))
+                                        .contentShape(Rectangle())
+                                        .onTapGesture {
+                                            enterEditMode()
+                                        }
+                                }
                                 
                                 Spacer()
                             }
@@ -257,67 +317,37 @@ struct ItemDetailsView: View {
                         
                         // Time Section
                         VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                Text("Time")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.secondary)
-                                    .textCase(.uppercase)
-                                    .tracking(1)
-                                
-                                Spacer()
-                                
-                                Button("Edit") {
-                                    showingTimeEditor = true
-                                }
+                            Text("Time")
                                 .font(.system(size: 14))
-                                .foregroundColor(Color("Accent1"))
-                            }
+                                .foregroundColor(.secondary)
+                                .textCase(.uppercase)
+                                .tracking(1)
                             
-                            HStack {
-                                Image(systemName: item.assignedTime != nil ? "clock" : "clock.badge.xmark")
-                                    .foregroundColor(.secondary)
-                                
-                                Text(formattedTime)
-                                    .font(.system(size: 18))
-                                    .foregroundColor(item.assignedTime != nil ? .primary : .secondary)
-                                
-                                Spacer()
-                            }
-                        }
-                        
-                        Divider()
-                        
-                        // Checklist Section
-                        VStack(alignment: .leading, spacing: 12) {
-                            HStack {
-                                Text("Checklist")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.secondary)
-                                    .textCase(.uppercase)
-                                    .tracking(1)
-                                
-                                Spacer()
-                                
-                                Button("Add Item") {
-                                    showingAddChecklistItem = true
-                                }
-                                .font(.system(size: 14))
-                                .foregroundColor(Color("Accent1"))
-                            }
-                            
-                            if item.checklist.isEmpty {
-                                Text("No checklist items")
-                                    .font(.system(size: 16))
-                                    .foregroundColor(.secondary)
-                                    .italic()
-                            } else {
-                                LazyVStack(spacing: 8) {
-                                    ForEach(item.checklist.sorted { $0.sortOrder < $1.sortOrder }) { checklistItem in
-                                        ChecklistItemRow(
-                                            checklistItem: checklistItem,
-                                            parentItem: item,
-                                            itemManager: itemManager
-                                        )
+                            VStack(alignment: .leading, spacing: 8) {
+                                if isEditMode {
+                                    Toggle("Assign Time", isOn: $hasTime)
+                                        .font(.system(size: 16))
+                                        .fontWeight(.medium)
+                                    
+                                    if hasTime {
+                                        DatePicker("Time", selection: $editedTime, displayedComponents: .hourAndMinute)
+                                            .labelsHidden()
+                                            .font(.system(size: 18))
+                                    }
+                                } else {
+                                    HStack {
+                                        Image(systemName: item.assignedTime != nil ? "clock" : "clock.badge.xmark")
+                                            .foregroundColor(.secondary)
+                                        
+                                        Text(formattedTime)
+                                            .font(.system(size: 18))
+                                            .foregroundColor(item.assignedTime != nil ? .primary : .secondary)
+                                            .contentShape(Rectangle())
+                                            .onTapGesture {
+                                                enterEditMode()
+                                            }
+                                        
+                                        Spacer()
                                     }
                                 }
                             }
@@ -325,22 +355,29 @@ struct ItemDetailsView: View {
                         
                         Spacer(minLength: 40)
                         
-                        // Delete button at bottom
+                        // Edit/Save button at bottom
                         Button(action: {
-                            itemManager.deleteItem(item)
-                            isPresented = false
+                            if isEditMode {
+                                saveChanges()
+                            } else {
+                                enterEditMode()
+                            }
                         }) {
                             HStack {
-                                Image(systemName: "trash")
-                                Text("Delete Item")
+                                Image(systemName: isEditMode ? "checkmark" : "pencil")
+                                Text(isEditMode ? "Save Item" : "Edit Item")
                             }
                             .font(.system(size: 16))
-                            .foregroundColor(.red)
+                            .foregroundColor(isEditMode ? .white : Color("Accent1"))
                             .padding(.vertical, 12)
                             .frame(maxWidth: .infinity)
                             .background(
                                 RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color.red.opacity(0.3), lineWidth: 1)
+                                    .fill(isEditMode ? Color("Accent1") : Color.clear)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Color("Accent1"), lineWidth: isEditMode ? 0 : 1)
+                                    )
                             )
                         }
                         .buttonStyle(PlainButtonStyle())
@@ -354,50 +391,27 @@ struct ItemDetailsView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
+                        if isEditMode {
+                            saveChanges()
+                        }
                         isPresented = false
                     }
                 }
             }
+            .onAppear {
+                setupEditableValues()
+            }
         }
         .presentationDetents([.height(600), .large])
-        .sheet(isPresented: $showingNameEditor) {
-            EditNameView(
-                currentName: item.title,
-                onSave: { newName in
-                    updateItemName(newName)
-                }
-            )
-        }
-        .sheet(isPresented: $showingDescriptionEditor) {
-            EditDescriptionView(
-                currentDescription: item.description,
-                onSave: { newDescription in
-                    updateItemDescription(newDescription)
-                }
-            )
-        }
-        .sheet(isPresented: $showingDateEditor) {
-            EditDateView(
-                currentDate: item.assignedDate,
-                onSave: { newDate in
-                    updateItemDate(newDate)
-                }
-            )
-        }
-        .sheet(isPresented: $showingTimeEditor) {
-            EditTimeView(
-                currentTime: item.assignedTime,
-                hasTime: item.assignedTime != nil,
-                onSave: { newTime, hasTimeValue in
-                    updateItemTime(hasTimeValue ? newTime : nil)
-                }
-            )
-        }
         .alert("Add Checklist Item", isPresented: $showingAddChecklistItem) {
             TextField("Item title", text: $newChecklistItemTitle)
             Button("Add") {
                 if !newChecklistItemTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    itemManager.addChecklistItem(item, title: newChecklistItemTitle)
+                    let newChecklistItem = ChecklistItem(
+                        title: newChecklistItemTitle,
+                        sortOrder: editedChecklist.count
+                    )
+                    editedChecklist.append(newChecklistItem)
                     newChecklistItemTitle = ""
                 }
             }
@@ -409,22 +423,75 @@ struct ItemDetailsView: View {
         }
     }
     
-    // Update these methods in your ItemDetailsView within ItemRowView.swift
-
-    private func updateItemName(_ newName: String) {
-        itemManager.updateItemName(item, newName: newName)
+    private func setupEditableValues() {
+        editedTitle = item.title
+        editedDescription = item.description
+        editedDate = item.assignedDate
+        editedTime = item.assignedTime ?? Date()
+        hasTime = item.assignedTime != nil
+        editedChecklist = item.checklist
     }
-
-    private func updateItemDescription(_ newDescription: String) {
-        itemManager.updateItemDescription(item, newDescription: newDescription)
+    
+    private func enterEditMode() {
+        setupEditableValues()
+        withAnimation(.easeInOut(duration: 0.3)) {
+            isEditMode = true
+        }
     }
-
-    private func updateItemDate(_ newDate: Date) {
-        itemManager.updateItemDate(item, newDate: newDate)
+    
+    private func saveChanges() {
+        // Update the item with edited values
+        itemManager.updateItemName(item, newName: editedTitle)
+        itemManager.updateItemDescription(item, newDescription: editedDescription)
+        itemManager.updateItemDate(item, newDate: editedDate)
+        itemManager.updateItemTime(item, time: hasTime ? editedTime : nil)
+        
+        // Update checklist with proper sync
+        updateItemChecklist()
+        
+        withAnimation(.easeInOut(duration: 0.3)) {
+            isEditMode = false
+        }
     }
-
-    private func updateItemTime(_ newTime: Date?) {
-        itemManager.updateItemTime(item, time: newTime)
+    
+    private func updateItemChecklist() {
+        guard let itemIndex = itemManager.items.firstIndex(where: { $0.id == item.id }) else { return }
+        
+        // Update the checklist
+        itemManager.items[itemIndex].checklist = editedChecklist
+        itemManager.items[itemIndex].lastModified = Date()
+        
+        let updatedItem = itemManager.items[itemIndex]
+        
+        // Sync to CloudKit using the same pattern as other update methods
+        Task {
+            do {
+                let savedItem = try await CloudKitManager.shared.saveItem(updatedItem)
+                await MainActor.run {
+                    if let idx = itemManager.items.firstIndex(where: { $0.id == savedItem.id }) {
+                        itemManager.items[idx] = savedItem
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    itemManager.errorMessage = "Failed to sync checklist: \(error.localizedDescription)"
+                    itemManager.showingError = true
+                }
+            }
+        }
+    }
+    private func toggleEditedChecklistItem(_ checklistItem: ChecklistItem) {
+        if let index = editedChecklist.firstIndex(where: { $0.id == checklistItem.id }) {
+            editedChecklist[index].isCompleted.toggle()
+        }
+    }
+    
+    private func deleteEditedChecklistItem(_ checklistItem: ChecklistItem) {
+        editedChecklist.removeAll { $0.id == checklistItem.id }
+        // Reorder remaining items
+        for (index, _) in editedChecklist.enumerated() {
+            editedChecklist[index].sortOrder = index
+        }
     }
 }
 
@@ -432,6 +499,7 @@ struct ChecklistItemRow: View {
     let checklistItem: ChecklistItem
     let parentItem: Item
     @ObservedObject var itemManager: ItemManager
+    let isEditMode: Bool
     
     var body: some View {
         HStack(spacing: 12) {
@@ -451,14 +519,16 @@ struct ChecklistItemRow: View {
             
             Spacer()
             
-            Button(action: {
-                itemManager.deleteChecklistItem(parentItem, checklistItem: checklistItem)
-            }) {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundColor(.red.opacity(0.6))
-                    .font(.system(size: 16))
+            if isEditMode {
+                Button(action: {
+                    itemManager.deleteChecklistItem(parentItem, checklistItem: checklistItem)
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.red.opacity(0.6))
+                        .font(.system(size: 16))
+                }
+                .buttonStyle(PlainButtonStyle())
             }
-            .buttonStyle(PlainButtonStyle())
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -466,203 +536,6 @@ struct ChecklistItemRow: View {
             RoundedRectangle(cornerRadius: 8)
                 .fill(Color.white.opacity(0.3))
         )
-    }
-}
-
-// Separate edit views for each field
-struct EditNameView: View {
-    let currentName: String
-    let onSave: (String) -> Void
-    @State private var editedName: String
-    @Environment(\.dismiss) private var dismiss
-    
-    init(currentName: String, onSave: @escaping (String) -> Void) {
-        self.currentName = currentName
-        self.onSave = onSave
-        self._editedName = State(initialValue: currentName)
-    }
-    
-    var body: some View {
-        NavigationView {
-            VStack(spacing: 20) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Item Name")
-                        .font(.system(size: 16))
-                        .fontWeight(.medium)
-                    
-                    TextField("Enter item name", text: $editedName)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .font(.system(size: 16))
-                }
-                
-                Spacer()
-            }
-            .padding()
-            .navigationTitle("Edit Name")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                }
-                
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Save") {
-                        onSave(editedName)
-                        dismiss()
-                    }
-                    .disabled(editedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-            }
-        }
-        .presentationDetents([.height(200)])
-    }
-}
-
-struct EditDescriptionView: View {
-    let currentDescription: String
-    let onSave: (String) -> Void
-    @State private var editedDescription: String
-    @Environment(\.dismiss) private var dismiss
-    
-    init(currentDescription: String, onSave: @escaping (String) -> Void) {
-        self.currentDescription = currentDescription
-        self.onSave = onSave
-        self._editedDescription = State(initialValue: currentDescription)
-    }
-    
-    var body: some View {
-        NavigationView {
-            VStack(spacing: 20) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Description")
-                        .font(.system(size: 16))
-                        .fontWeight(.medium)
-                    
-                    TextField("Enter description", text: $editedDescription, axis: .vertical)
-                        .textFieldStyle(RoundedBorderTextFieldStyle())
-                        .font(.system(size: 16))
-                        .lineLimit(3...6)
-                }
-                
-                Spacer()
-            }
-            .padding()
-            .navigationTitle("Edit Description")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                }
-                
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Save") {
-                        onSave(editedDescription)
-                        dismiss()
-                    }
-                }
-            }
-        }
-        .presentationDetents([.height(250)])
-    }
-}
-
-struct EditDateView: View {
-    let currentDate: Date
-    let onSave: (Date) -> Void
-    @State private var editedDate: Date
-    @Environment(\.dismiss) private var dismiss
-    
-    init(currentDate: Date, onSave: @escaping (Date) -> Void) {
-        self.currentDate = currentDate
-        self.onSave = onSave
-        self._editedDate = State(initialValue: currentDate)
-    }
-    
-    var body: some View {
-        NavigationView {
-            VStack(spacing: 20) {
-                DatePicker("Date", selection: $editedDate, displayedComponents: .date)
-                    .datePickerStyle(WheelDatePickerStyle())
-                    .labelsHidden()
-                
-                Spacer()
-            }
-            .padding()
-            .navigationTitle("Edit Date")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                }
-                
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Save") {
-                        onSave(editedDate)
-                        dismiss()
-                    }
-                }
-            }
-        }
-        .presentationDetents([.height(300)])
-    }
-}
-
-struct EditTimeView: View {
-    let currentTime: Date?
-    let hasTime: Bool
-    let onSave: (Date, Bool) -> Void
-    @State private var editedTime: Date
-    @State private var hasTimeToggle: Bool
-    @Environment(\.dismiss) private var dismiss
-    
-    init(currentTime: Date?, hasTime: Bool, onSave: @escaping (Date, Bool) -> Void) {
-        self.currentTime = currentTime
-        self.hasTime = hasTime
-        self.onSave = onSave
-        self._editedTime = State(initialValue: currentTime ?? Date())
-        self._hasTimeToggle = State(initialValue: hasTime)
-    }
-    
-    var body: some View {
-        NavigationView {
-            VStack(spacing: 20) {
-                Toggle("Assign Time", isOn: $hasTimeToggle)
-                    .font(.system(size: 16))
-                    .fontWeight(.medium)
-                
-                if hasTimeToggle {
-                    DatePicker("Time", selection: $editedTime, displayedComponents: .hourAndMinute)
-                        .datePickerStyle(WheelDatePickerStyle())
-                        .labelsHidden()
-                }
-                
-                Spacer()
-            }
-            .padding()
-            .navigationTitle("Edit Time")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                }
-                
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("Save") {
-                        onSave(editedTime, hasTimeToggle)
-                        dismiss()
-                    }
-                }
-            }
-        }
-        .presentationDetents([.height(300)])
     }
 }
 

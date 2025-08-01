@@ -11,7 +11,6 @@ struct CalendarGridView: View {
     let currentMonth: Date
     @Binding var selectedDate: Date
     
-    // Callbacks
     let onMonthChange: (SwipeDirection) -> Void
     let onDateJump: ((Date) -> Void)?
     
@@ -21,9 +20,8 @@ struct CalendarGridView: View {
     
     private let calendar = Calendar.current
     
-    // Size configuration for calendar
     private let daySize: CGFloat = 36
-    private let gridSpacing: CGFloat = 8
+    private let gridSpacing: CGFloat = 4
     private let horizontalPadding: CGFloat = 16
     
     init(currentMonth: Date, selectedDate: Binding<Date>, onMonthChange: @escaping (SwipeDirection) -> Void, onDateJump: ((Date) -> Void)? = nil) {
@@ -115,14 +113,14 @@ struct CalendarGridView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // Month/Year header with navigation and Today button
+            
             HStack {
                 Button(action: {
                     pickerDate = currentMonth
                     showingDatePicker = true
                 }) {
                     Text(monthYearString)
-                        .font(.system(.title3, design: .serif))
+                        .font(.system(.title, design: .serif))
                         .fontWeight(.semibold)
                         .foregroundColor(.primary)
                 }
@@ -153,18 +151,23 @@ struct CalendarGridView: View {
                             )
                     }
                     .buttonStyle(PlainButtonStyle())
-                
-                Button(action: {
-                    onMonthChange(.next)
-                }) {
-                    Image(systemName: "chevron.right")
-                        .font(.title3)
-                        .foregroundColor(Color("Accent1"))
+                    .padding(.horizontal, 4)
+                    
+                    Button(action: {
+                        onMonthChange(.next)
+                    }) {
+                        Image(systemName: "chevron.right")
+                            .font(.title3)
+                            .foregroundColor(Color("Accent1"))
+                    }
+                    
                 }
+                .padding(.horizontal, horizontalPadding)
+                
             }
-            .padding(.horizontal, horizontalPadding)
             .padding(.bottom, 12)
-        }
+            
+            
             HStack {
                 ForEach(dayHeaders, id: \.id) { dayHeader in
                     Text(dayHeader.letter)
@@ -202,26 +205,23 @@ struct CalendarGridView: View {
             }
             .padding(.horizontal, horizontalPadding)
         }
-        .padding(.vertical, 12)
+       
         .fixedSize(horizontal: true, vertical: false)
         .frame(maxWidth: .infinity)
         .gesture(
             DragGesture()
                 .onEnded { value in
                     let swipeThreshold: CGFloat = 50
-                    
                     if value.translation.width > swipeThreshold {
-                        // Swipe right - go to previous month
                         onMonthChange(.previous)
                     } else if value.translation.width < -swipeThreshold {
-                        // Swipe left - go to next month
                         onMonthChange(.next)
                     }
                 }
         )
         .sheet(isPresented: $showingDatePicker) {
             VStack(spacing: 30) {
-
+                
                 HStack {
                     Spacer()
                     Button(action: {
@@ -237,7 +237,7 @@ struct CalendarGridView: View {
                 .padding(.top, 24)
                 
                 HStack(spacing: 20) {
-     
+                    
                     VStack(spacing: 8) {
                         Text("Month")
                             .font(.headline)
@@ -257,7 +257,7 @@ struct CalendarGridView: View {
                         .pickerStyle(WheelPickerStyle())
                     }
                     
-
+                    
                     VStack(spacing: 8) {
                         Text("Year")
                             .font(.headline)
@@ -284,8 +284,7 @@ struct CalendarGridView: View {
                 Button("Update") {
                     // Calculate the number of months to jump
                     let monthDifference = calendar.dateComponents([.month], from: currentMonth, to: pickerDate).month ?? 0
-                    
-                    // Apply the month changes
+
                     for _ in 0..<abs(monthDifference) {
                         if monthDifference > 0 {
                             onMonthChange(.next)
@@ -315,7 +314,7 @@ struct CalendarGridView: View {
     }
 }
 
-// Compact version of CalendarDayView
+
 struct CompactCalendarDayView: View {
     let date: Date
     let currentMonth: Date
@@ -375,7 +374,7 @@ struct CompactCalendarDayView: View {
 #Preview {
     @Previewable @State var selectedDate = Date()
     ZStack {
-BackgroundView()
+        BackgroundView()
         
         CalendarGridView(
             currentMonth: Date(),
