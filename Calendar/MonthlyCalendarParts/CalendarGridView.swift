@@ -2,7 +2,7 @@
 //  CalendarGridView.swift
 //  Calendar
 //
-//  Created by Jessica Estes on 7/29/25.
+//  Updated with card wrapper styling
 //
 
 import SwiftUI
@@ -56,23 +56,26 @@ struct CalendarGridView: View {
     }
     
     var body: some View {
+        // Card wrapper with fixed width
         VStack(spacing: 0) {
             
             HStack {
                 ForEach(dayHeaders, id: \.id) { dayHeader in
                     Text(dayHeader.letter)
-                        .font(.system(size: 10))
-                      //  .textCase(.uppercase)
+                        .font(.system(size: 9))
                         .fontWeight(.semibold)
-                        .tracking(1.0)
+                        .tracking(0.8)
                         .foregroundColor(.primary)
-                        .frame(maxWidth: .infinity)
+                        .frame(width: 32) // Smaller width for each day header
                 }
             }
-            .padding(.bottom, 4)
-            Divider()
+            .padding(.bottom, 6)
+            .padding(.top, 3)
             
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 1) {
+            Divider()
+                .padding(.bottom, 6)
+            
+            LazyVGrid(columns: Array(repeating: GridItem(.fixed(32)), count: 7), spacing: 6) {
                 ForEach(weeks, id: \.self) { week in
                     ForEach(Array(week.enumerated()), id: \.offset) { index, date in
                         if let date = date {
@@ -84,19 +87,31 @@ struct CalendarGridView: View {
                         } else {
                             // Empty space for dates not in current month
                             Color.clear
-                                .frame(width: 36, height: 36)
+                                .frame(width: 32, height: 32)
                         }
                     }
                 }
             }
+            .padding(.bottom, 6)
         }
-        .padding(.horizontal, 72)
+        .frame(width: 266) // Fixed total width: (32 * 7) + (6 * 6) + (16 * 2) = 292
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 16)
+                .fill(Color.white.opacity(0.8))
+                .shadow(color: .black.opacity(0.05), radius: 8, x: 0, y: 2)
+        )
+        .padding(.horizontal, 16)
     }
 }
 
-
 #Preview {
     @Previewable @State var selectedDate = Date()
-    CalendarGridView(currentMonth: Date(),
-                     selectedDate: $selectedDate)
+    ZStack {
+        
+ BackgroundView()
+        CalendarGridView(currentMonth: Date(),
+                         selectedDate: $selectedDate)
+    }
 }
