@@ -504,6 +504,39 @@ class ItemManager: ObservableObject {
             }
         }
     }
+    // Add this method to your ItemManager class in ItemModel.swift
+    // Insert this in the ItemManager class after the existing moveItem method
+
+    // MARK: - Reorder Sync Method
+
+    func syncReorderedItems(_ reorderedItems: [Item]) {
+        // Sync all reordered items to CloudKit in background
+        Task { [weak self] in
+            guard let self = self else { return }
+            
+            // Create a copy of the items to sync
+            let itemsToSync = reorderedItems
+            
+            for item in itemsToSync {
+                do {
+                    let savedItem = try await self.cloudKitManager.saveItem(item)
+                    await MainActor.run {
+                        // Update the local item with any changes from CloudKit
+                        if let index = self.items.firstIndex(where: { $0.id == savedItem.id }) {
+                            self.items[index] = savedItem
+                        }
+                    }
+                } catch {
+                    await MainActor.run {
+                        print("Failed to sync reordered item: \(error)")
+                        // Optionally show error to user
+                        self.errorMessage = "Failed to sync item order: \(error.localizedDescription)"
+                        self.showingError = true
+                    }
+                }
+            }
+        }
+    }
     
     private func reorderItems() {
         for (index, _) in items.enumerated() {

@@ -2,8 +2,7 @@
 //  ItemListView.swift
 //  Calendar
 //
-//  Created by Jessica Estes on 7/29/25.
-//  Minimal fix - keep using Item type
+//  Updated with drag-to-reorder functionality
 //
 
 import SwiftUI
@@ -55,38 +54,37 @@ struct ItemListView: View {
                     .padding(.horizontal, 20)
                 } else {
                     
-                    HStack {
-                        
-                        LazyVStack(spacing: 4) {
-                            ZStack (alignment: .leading) {
-                                Rectangle()
+                    // Use List for drag-to-reorder functionality
+                    List {
+                        ForEach(itemsForSelectedDate, id: \.id) { item in
+                            HStack(alignment: .center, spacing: 28) {
+                                Circle()
                                     .fill(.gray)
-                                    .frame(width: 2)
-                                    .padding(.leading, 3)
-                                VStack {
-                                    ForEach(Array(itemsForSelectedDate.enumerated()), id: \.element.id) { index, item in
-                                        HStack(alignment: .center, spacing: 28) {
-                                            Circle()
-                                                .fill(.gray)
-                                                .frame(width: 8, height: 8)
-                                            
-                                            ItemRowView(itemManager: itemManager, item: item)
-                                            
-                                            Spacer()
-                                        }
-                            
-                       
-                                    }
-                                    .onDelete(perform: deleteItems)
-                       
-                                }
-                       
+                                    .frame(width: 8, height: 8)
+                                
+                                ItemRowView(itemManager: itemManager, item: item)
+                                
+                                Spacer()
                             }
-                            .padding(.leading, 48)
-                       
+                            .listRowBackground(Color.clear)
+                            .listRowSeparator(.hidden)
+                            .listRowInsets(EdgeInsets(top: 0, leading: 48, bottom: 0, trailing: 16))
                         }
-                       
+                        .onMove(perform: moveItems)
+                        .onDelete(perform: deleteItems)
                     }
+                    .listStyle(PlainListStyle())
+                    .background(Color.clear)
+                    .overlay(
+                        // Timeline line overlay
+                        HStack {
+                            Rectangle()
+                                .fill(.gray)
+                                .frame(width: 2)
+                                .padding(.leading, 51) // Adjusted to align with circles
+                            Spacer()
+                        }
+                    )
                 }
                 
                 Spacer()
@@ -123,6 +121,25 @@ struct ItemListView: View {
         .sheet(isPresented: $showingAddItem) {
             AddItemView(itemManager: itemManager, selectedDate: selectedDate, isPresented: $showingAddItem)
         }
+    }
+    
+    private func moveItems(from source: IndexSet, to destination: Int) {
+        // Get the current items for the selected date
+        var currentItems = itemsForSelectedDate
+        
+        // Move the items in the local array
+        currentItems.move(fromOffsets: source, toOffset: destination)
+        
+        // Update sort orders for all items on this date
+        for (index, item) in currentItems.enumerated() {
+            if let globalIndex = itemManager.items.firstIndex(where: { $0.id == item.id }) {
+                itemManager.items[globalIndex].sortOrder = index
+                itemManager.items[globalIndex].lastModified = Date()
+            }
+        }
+        
+        // Sync the changes to CloudKit
+        itemManager.syncReorderedItems(currentItems)
     }
     
     private func deleteItems(offsets: IndexSet) {
