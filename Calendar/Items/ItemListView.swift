@@ -126,28 +126,27 @@ struct ItemListView: View {
     // FIXED: This is the corrected moveItems function
     private func moveItems(from source: IndexSet, to destination: Int) {
         // Get the items for this specific date
-        let itemsForDate = itemsForSelectedDate
-        
-        // Create a mutable copy
-        var reorderedItems = itemsForDate
+        var itemsForDate = itemsForSelectedDate
         
         // Perform the move operation on the copy
-        reorderedItems.move(fromOffsets: source, toOffset: destination)
+        itemsForDate.move(fromOffsets: source, toOffset: destination)
         
-        // Now update the sort orders and last modified dates
-        for (newIndex, item) in reorderedItems.enumerated() {
+        // Now update the sort orders for items on this specific date
+        for (newIndex, item) in itemsForDate.enumerated() {
             // Find this item in the main items array and update it
             if let globalIndex = itemManager.items.firstIndex(where: { $0.id == item.id }) {
                 itemManager.items[globalIndex].sortOrder = newIndex
                 itemManager.items[globalIndex].lastModified = Date()
+                // IMPORTANT: Mark this item as having custom order for this date
+                itemManager.items[globalIndex].setCustomOrder(for: selectedDate, hasCustomOrder: true)
             }
         }
         
         // Force the UI to update by triggering objectWillChange
         itemManager.objectWillChange.send()
         
-        // Sync the reordered items to CloudKit in the background
-        itemManager.syncReorderedItems(reorderedItems)
+        // Use the new smart reordering method
+        itemManager.handleManualReorder(for: selectedDate, reorderedItems: itemsForDate)
     }
     
     private func deleteItems(offsets: IndexSet) {
