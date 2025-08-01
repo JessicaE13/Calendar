@@ -343,7 +343,8 @@ class ItemManager: ObservableObject {
     
     // MARK: - Smart Ordering Methods
     
-    // NEW: Smart ordering method that respects user preferences
+    // FIXED: Replace the itemsForDate method in ItemManager with this version
+
     func itemsForDate(_ date: Date) -> [Item] {
         let calendar = Calendar.current
         let targetDate = calendar.startOfDay(for: date)
@@ -352,15 +353,25 @@ class ItemManager: ObservableObject {
             calendar.isDate(item.assignedDate, equalTo: targetDate, toGranularity: .day)
         }
         
+        print("📋 ItemsForDate called for \(targetDate)")
+        print("📋 Found \(itemsForDate.count) items for date")
+        
         // Check if ANY item for this date has been manually reordered
         let hasAnyCustomOrder = itemsForDate.contains { $0.hasCustomOrder(for: date) }
         
+        print("📋 Has custom order: \(hasAnyCustomOrder)")
+        
         if hasAnyCustomOrder {
-            // Use manual ordering (sort by sortOrder)
-            return itemsForDate.sorted { $0.sortOrder < $1.sortOrder }
+            // Use manual ordering (sort by sortOrder) - THIS IS THE KEY FIX
+            let sortedItems = itemsForDate.sorted { $0.sortOrder < $1.sortOrder }
+            print("📋 Using manual order - sorted by sortOrder")
+            for (index, item) in sortedItems.enumerated() {
+                print("📋 Item \(index): '\(item.title)' (sortOrder: \(item.sortOrder))")
+            }
+            return sortedItems
         } else {
             // Use chronological ordering (time first, then sort order)
-            return itemsForDate.sorted { item1, item2 in
+            let sortedItems = itemsForDate.sorted { item1, item2 in
                 if let time1 = item1.assignedTime, let time2 = item2.assignedTime {
                     return time1 < time2
                 } else if item1.assignedTime != nil && item2.assignedTime == nil {
@@ -372,6 +383,11 @@ class ItemManager: ObservableObject {
                     return item1.sortOrder < item2.sortOrder
                 }
             }
+            print("📋 Using chronological order")
+            for (index, item) in sortedItems.enumerated() {
+                print("📋 Item \(index): '\(item.title)' (time: \(item.assignedTime?.description ?? "none"))")
+            }
+            return sortedItems
         }
     }
     

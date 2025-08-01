@@ -2,7 +2,7 @@
 //  ItemListView.swift
 //  Calendar
 //
-//  Updated with FIXED drag-to-reorder functionality
+//  EXPLICIT DRAG AND DROP IMPLEMENTATION
 //
 
 import SwiftUI
@@ -13,9 +13,9 @@ struct ItemListView: View {
     @State private var showingAddItem = false
     @State private var newItemTitle = ""
     
-    private var itemsForSelectedDate: [Item] {
-        itemManager.itemsForDate(selectedDate)
-    }
+    // Our display items that we fully control
+    @State private var displayItems: [Item] = []
+    @State private var draggedItem: Item?
     
     private var selectedDateString: String {
         let calendar = Calendar.current
@@ -34,7 +34,7 @@ struct ItemListView: View {
         ZStack {
             VStack(alignment: .leading, spacing: 16) {
                 
-                if itemsForSelectedDate.isEmpty {
+                if displayItems.isEmpty {
                     
                     VStack(spacing: 8) {
                         Image(systemName: "checkmark.square")
@@ -54,34 +54,36 @@ struct ItemListView: View {
                     .padding(.horizontal, 20)
                 } else {
                     
-                    // Use List for drag-to-reorder functionality
-                    List {
-                        ForEach(itemsForSelectedDate, id: \.id) { item in
-                            HStack(alignment: .center, spacing: 28) {
-                                Circle()
-                                    .fill(.gray)
-                                    .frame(width: 8, height: 8)
-                                
-                                ItemRowView(itemManager: itemManager, item: item)
-                                
-                                Spacer()
+                    // Custom scrollable list with explicit drag and drop
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(displayItems, id: \.id) { item in
+                                DraggableItemRow(
+                                    item: item,
+                                    itemManager: itemManager,
+                                    isBeingDragged: draggedItem?.id == item.id,
+                                    onDragChanged: { isDragging in
+                                        if isDragging {
+                                            draggedItem = item
+                                        } else {
+                                            draggedItem = nil
+                                        }
+                                    },
+                                    onMove: { draggedItem, targetItem in
+                                        moveItem(draggedItem, to: targetItem)
+                                    }
+                                )
                             }
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
-                            .listRowInsets(EdgeInsets(top: 0, leading: 48, bottom: 0, trailing: 16))
                         }
-                        .onMove(perform: moveItems)
-                        .onDelete(perform: deleteItems)
+                        .padding(.horizontal, 20)
                     }
-                    .listStyle(PlainListStyle())
-                    .background(Color.clear)
-                    .overlay(
-                        // Timeline line overlay
+                    .background(
+                        // Timeline line
                         HStack {
                             Rectangle()
                                 .fill(.gray)
                                 .frame(width: 2)
-                                .padding(.leading, 51) // Adjusted to align with circles
+                                .padding(.leading, 51)
                             Spacer()
                         }
                     )
@@ -118,49 +120,168 @@ struct ItemListView: View {
                 .padding(.bottom, 20)
             }
         }
+        .onAppear {
+            loadDisplayItems()
+        }
+        .onChange(of: selectedDate) { _ in
+            loadDisplayItems()
+        }
         .sheet(isPresented: $showingAddItem) {
-            AddItemView(itemManager: itemManager, selectedDate: selectedDate, isPresented: $showingAddItem)
+            AddItemView(itemManager: itemManager, selectedDate: selectedDate, isPresented: $showingAddItem) {
+                loadDisplayItems()
+            }
         }
     }
     
-    // FIXED: This is the corrected moveItems function
-    private func moveItems(from source: IndexSet, to destination: Int) {
-        // Get the items for this specific date
-        var itemsForDate = itemsForSelectedDate
+    private func loadDisplayItems() {
+        let calendar = Calendar.current
+        let targetDate = calendar.startOfDay(for: selectedDate)
         
-        // Perform the move operation on the copy
-        itemsForDate.move(fromOffsets: source, toOffset: destination)
+        let itemsForThisDate = itemManager.items.filter { item in
+            calendar.isDate(item.assignedDate, equalTo: targetDate, toGranularity: .day)
+        }
         
-        // Now update the sort orders for items on this specific date
-        for (newIndex, item) in itemsForDate.enumerated() {
-            // Find this item in the main items array and update it
+        let sortedItems = itemsForThisDate.sorted { item1, item2 in
+            let hasCustomOrder = itemsForThisDate.contains { $0.hasCustomOrder(for: selectedDate) }
+            
+            if hasCustomOrder {
+                return item1.sortOrder < item2.sortOrder
+            } else {
+                if let time1 = item1.assignedTime, let time2 = item2.assignedTime {
+                    return time1 < time2
+                } else if item1.assignedTime != nil && item2.assignedTime == nil {
+                    return true
+                } else if item1.assignedTime == nil && item2.assignedTime != nil {
+                    return false
+                } else {
+                    return item1.sortOrder < item2.sortOrder
+                }
+            }
+        }
+        
+        displayItems = sortedItems
+        print("📋 Loaded \(displayItems.count) items for display")
+    }
+    
+    private func moveItem(_ draggedItem: Item, to targetItem: Item) {
+        print("🔄 Moving '\(draggedItem.title)' to position of '\(targetItem.title)'")
+        
+        guard let fromIndex = displayItems.firstIndex(where: { $0.id == draggedItem.id }),
+              let toIndex = displayItems.firstIndex(where: { $0.id == targetItem.id }) else {
+            print("❌ Could not find item indices")
+            return
+        }
+        
+        // Move the item in the display array
+        withAnimation(.easeInOut(duration: 0.3)) {
+            let movedItem = displayItems.remove(at: fromIndex)
+            displayItems.insert(movedItem, at: toIndex)
+        }
+        
+        // Update sort orders
+        for (index, item) in displayItems.enumerated() {
             if let globalIndex = itemManager.items.firstIndex(where: { $0.id == item.id }) {
-                itemManager.items[globalIndex].sortOrder = newIndex
+                itemManager.items[globalIndex].sortOrder = index
                 itemManager.items[globalIndex].lastModified = Date()
-                // IMPORTANT: Mark this item as having custom order for this date
                 itemManager.items[globalIndex].setCustomOrder(for: selectedDate, hasCustomOrder: true)
             }
         }
         
-        // Force the UI to update by triggering objectWillChange
-        itemManager.objectWillChange.send()
-        
-        // Use the new smart reordering method
-        itemManager.handleManualReorder(for: selectedDate, reorderedItems: itemsForDate)
-    }
-    
-    private func deleteItems(offsets: IndexSet) {
-        for index in offsets {
-            let item = itemsForSelectedDate[index]
-            itemManager.deleteItem(item)
+        // Background sync
+        Task {
+            for item in displayItems {
+                if let globalItem = itemManager.items.first(where: { $0.id == item.id }) {
+                    do {
+                        _ = try await CloudKitManager.shared.saveItem(globalItem)
+                    } catch {
+                        print("❌ Failed to sync '\(item.title)': \(error)")
+                    }
+                }
+            }
         }
+        
+        print("✅ Move completed")
+    }
+}
+
+struct DraggableItemRow: View {
+    let item: Item
+    @ObservedObject var itemManager: ItemManager
+    let isBeingDragged: Bool
+    let onDragChanged: (Bool) -> Void
+    let onMove: (Item, Item) -> Void
+    
+    @State private var dragOffset = CGSize.zero
+    @State private var isDragging = false
+    
+    var body: some View {
+        HStack(alignment: .center, spacing: 28) {
+            Circle()
+                .fill(.gray)
+                .frame(width: 8, height: 8)
+            
+            ItemRowView(itemManager: itemManager, item: item)
+            
+            Spacer()
+        }
+        .padding(.vertical, 8)
+        .background(Color.clear)
+        .scaleEffect(isDragging ? 1.05 : 1.0)
+        .opacity(isDragging ? 0.8 : 1.0)
+        .offset(dragOffset)
+        .zIndex(isDragging ? 1 : 0)
+        .animation(.easeInOut(duration: 0.2), value: isDragging)
+        .animation(.easeInOut(duration: 0.2), value: dragOffset)
+        .gesture(
+            DragGesture()
+                .onChanged { value in
+                    if !isDragging {
+                        isDragging = true
+                        onDragChanged(true)
+                        print("🎯 Started dragging '\(item.title)'")
+                    }
+                    dragOffset = value.translation
+                }
+                .onEnded { value in
+                    print("🎯 Ended dragging '\(item.title)' at offset \(value.translation)")
+                    
+                    // Simple logic: if we dragged more than 30 points, move to next/previous item
+                    if abs(value.translation.height) > 30 {
+                        // Find target item based on drag direction
+                        if let currentIndex = itemManager.itemsForDate(Date()).firstIndex(where: { $0.id == item.id }) {
+                            let allItems = itemManager.itemsForDate(Date())
+                            var targetIndex = currentIndex
+                            
+                            if value.translation.height < 0 && currentIndex > 0 {
+                                // Dragged up
+                                targetIndex = currentIndex - 1
+                            } else if value.translation.height > 0 && currentIndex < allItems.count - 1 {
+                                // Dragged down
+                                targetIndex = currentIndex + 1
+                            }
+                            
+                            if targetIndex != currentIndex && targetIndex < allItems.count {
+                                onMove(item, allItems[targetIndex])
+                            }
+                        }
+                    }
+                    
+                    // Reset drag state
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        dragOffset = .zero
+                        isDragging = false
+                    }
+                    onDragChanged(false)
+                }
+        )
     }
 }
 
 struct AddItemView: View {
     @ObservedObject var itemManager: ItemManager
-    let selectedDate: Date // Add selectedDate parameter
+    let selectedDate: Date
     @Binding var isPresented: Bool
+    let onItemAdded: () -> Void
     @State private var itemTitle = ""
     @State private var hasTime = false
     @State private var selectedTime = Date()
@@ -203,11 +324,12 @@ struct AddItemView: View {
                     Button("Add Item") {
                         let newItem = Item(
                             title: itemTitle,
-                            assignedDate: selectedDate, // Use the selected date
+                            assignedDate: selectedDate,
                             assignedTime: hasTime ? selectedTime : nil,
                             sortOrder: itemManager.items.count
                         )
                         itemManager.addItem(newItem)
+                        onItemAdded()
                         isPresented = false
                     }
                     .fontWeight(.semibold)
