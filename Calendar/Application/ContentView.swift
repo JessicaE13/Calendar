@@ -71,9 +71,11 @@ struct ContentView: View {
                             }
                         }
                 )
-                
-                Text("Entitlements container: \(CKContainer.default().containerIdentifier ?? "nil")")
-                Text("Explicit container: \(CKContainer(identifier: "iCloud.com.estes.Dev").containerIdentifier ?? "nil")")
+            
+                Text("Active container: \(CKContainer(identifier: "iCloud.com.estes.Dev").containerIdentifier ?? "nil")")
+                Text("Environment: Development")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
 
                 
                 HStack {

@@ -1,6 +1,6 @@
 //
 //  CloudKitTestView.swift
-//  Add this file to your project to test CloudKit connection
+//  Fixed version that uses the same container as your app
 //
 
 import SwiftUI
@@ -10,6 +10,11 @@ struct CloudKitTestView: View {
     @StateObject private var cloudKitManager = CloudKitManager.shared
     @State private var testResults: [String] = []
     @State private var isRunningTest = false
+    
+    // Use the same container as your app
+    private var container: CKContainer {
+        return CKContainer(identifier: "iCloud.com.estes.Dev")
+    }
     
     var body: some View {
         NavigationView {
@@ -26,7 +31,7 @@ struct CloudKitTestView: View {
                             .font(.body)
                     }
                     
-                    Text("Container: \(CKContainer.default().containerIdentifier ?? "Unknown")")
+                    Text("Container: \(container.containerIdentifier ?? "Unknown")")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -198,22 +203,27 @@ struct CloudKitTestView: View {
         
         // Test 2: Container Access
         addResult("Testing CloudKit container access...")
-        let container = CKContainer.default()
         addResult("✅ CloudKit container accessible: \(container.containerIdentifier ?? "Unknown")")
         
         // Test 3: Database Access (only if account is available)
         if cloudKitManager.isAccountAvailable {
             addResult("Testing private database access...")
             do {
-                let database = CKContainer.default().privateCloudDatabase
+                let database = container.privateCloudDatabase
                 
                 // Try a simple query that should work even with no records
                 let query = CKQuery(recordType: "Item", predicate: NSPredicate(value: false))
                 let _ = try await database.records(matching: query)
                 addResult("✅ Private database accessible")
+            } catch let error as CKError {
+                if error.code == .unknownItem || error.code == .invalidArguments {
+                    addResult("❌ Database access error: \(error.localizedDescription)")
+                    addResult("ℹ️ This is normal - schema isn't set up yet")
+                } else {
+                    addResult("❌ Unexpected database error: \(error.localizedDescription)")
+                }
             } catch {
                 addResult("❌ Database access error: \(error.localizedDescription)")
-                addResult("ℹ️ This might be normal if schema isn't set up yet")
             }
         } else {
             addResult("⏩ Skipping database test (no iCloud account)")
@@ -222,12 +232,17 @@ struct CloudKitTestView: View {
         // Test 4: CloudKit Manager Functions
         addResult("Testing CloudKitManager functions...")
         do {
-            // This should fail gracefully if no account or schema
             let _ = try await cloudKitManager.fetchAllItems()
             addResult("✅ CloudKitManager.fetchAllItems() executed")
+        } catch let error as CKError {
+            if error.code == .unknownItem || error.code == .invalidArguments {
+                addResult("⚠️ CloudKitManager error: \(error.localizedDescription)")
+                addResult("ℹ️ This is expected - CloudKit schema isn't set up yet")
+            } else {
+                addResult("❌ Unexpected CloudKitManager error: \(error.localizedDescription)")
+            }
         } catch {
-            addResult("⚠️ CloudKitManager error: \(error.localizedDescription)")
-            addResult("ℹ️ This is expected if CloudKit schema isn't set up yet")
+            addResult("❌ CloudKitManager error: \(error.localizedDescription)")
         }
         
         addResult("🎉 Test completed!")
@@ -254,12 +269,13 @@ struct CloudKitTestView: View {
     }
     
     private func createCloudKitSchema() async {
-        addResult("🚀 Creating CloudKit schema...")
+        addResult("🚀 Creating CloudKit schema in Dev container...")
+        addResult("📍 Using container: iCloud.com.estes.Dev")
         
         // Create a sample item to establish the schema
         let sampleItem = Item(
-            title: "Schema Test Item",
-            description: "This item creates the CloudKit schema",
+            title: "Schema Test Item - Dev Container",
+            description: "This item creates the CloudKit schema in the Dev container",
             assignedDate: Date(),
             sortOrder: 0
         )
@@ -267,17 +283,35 @@ struct CloudKitTestView: View {
         addResult("📝 Creating sample item record...")
         
         do {
-            _ = try await cloudKitManager.saveItem(sampleItem)
-            addResult("✅ Successfully created Item record type!")
+            let savedItem = try await cloudKitManager.saveItem(sampleItem)
+            addResult("✅ Successfully created Item record type in Dev container!")
             addResult("✅ CloudKit schema is now set up!")
-            addResult("🗑️ You can delete the test item from CloudKit Console if you want")
+            
+            // Clean up - delete the test item
+            if let recordID = savedItem.recordID {
+                do {
+                    try await cloudKitManager.deleteItem(recordID: recordID)
+                    addResult("🗑️ Test item deleted successfully")
+                } catch {
+                    addResult("⚠️ Test item created but couldn't delete it: \(error.localizedDescription)")
+                    addResult("💡 You can delete it manually from CloudKit Console")
+                }
+            }
+            
             addResult("🎉 Your app can now sync items to iCloud!")
-        } catch {
+        } catch let error as CKError {
             addResult("❌ Schema creation failed: \(error.localizedDescription)")
-            if error.localizedDescription.contains("UnknownItem") {
+            addResult("🔍 Error code: \(error.code.rawValue)")
+            
+            if error.code == .unknownItem {
                 addResult("ℹ️ This means the record type doesn't exist yet")
+                addResult("💡 The save operation should create it automatically")
+            } else if error.code == .invalidArguments {
+                addResult("ℹ️ This might be a field validation issue")
                 addResult("💡 Try going to CloudKit Console to set up manually")
             }
+        } catch {
+            addResult("❌ Schema creation failed: \(error.localizedDescription)")
         }
     }
 }

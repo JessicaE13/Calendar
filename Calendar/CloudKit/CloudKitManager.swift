@@ -2,7 +2,7 @@
 //  CloudKitManager.swift
 //  Calendar
 //
-//  Configurable version that can switch between containers
+//  Simplified version compatible with all iOS versions
 //
 
 import Foundation
@@ -38,6 +38,7 @@ class CloudKitManager: ObservableObject {
     @Published var isAccountAvailable = false
     @Published var isSyncing = false
     @Published var lastSyncDate: Date?
+    @Published var schemaSetupComplete = false
     
     init() {
         self.container = CKContainer(identifier: environment.containerIdentifier)
@@ -88,7 +89,18 @@ class CloudKitManager: ObservableObject {
             let savedRecord = try await privateDatabase.save(record)
             updatedItem.recordID = savedRecord.recordID
             print("Successfully saved item to \(environment) container: \(item.title)")
+            
+            // Mark schema as set up after first successful save
+            if !schemaSetupComplete {
+                schemaSetupComplete = true
+                print("Schema setup appears to be complete!")
+            }
+            
             return updatedItem
+        } catch let error as CKError {
+            print("CloudKit save error (\(environment)): \(error)")
+            print("Error code: \(error.code.rawValue)")
+            throw CloudKitError.saveFailed(error)
         } catch {
             print("Failed to save item to \(environment) container: \(error)")
             throw CloudKitError.saveFailed(error)
@@ -109,40 +121,59 @@ class CloudKitManager: ObservableObject {
             lastSyncDate = Date()
         }
         
-        let query = CKQuery(recordType: "Item", predicate: NSPredicate(value: true))
-        query.sortDescriptors = [NSSortDescriptor(key: "lastModified", ascending: false)]
-        
         print("Fetching items from CloudKit \(environment) container...")
         
+        // Use simple query approach that's more compatible
+        let items = try await fetchWithCompatibleQuery()
+        
+        print("Successfully fetched \(items.count) items from CloudKit \(environment) container")
+        return items
+    }
+    
+    private func fetchWithCompatibleQuery() async throws -> [Item] {
+        // Use the most basic query possible to avoid field queryable issues
+        let query = CKQuery(recordType: "Item", predicate: NSPredicate(value: true))
+        
         do {
-            let (matchResults, _) = try await privateDatabase.records(matching: query)
+            // Try with sort first
+            query.sortDescriptors = [NSSortDescriptor(key: "lastModified", ascending: false)]
+            return try await performQuery(query)
+        } catch let error as CKError where error.code == .invalidArguments {
+            print("Sort by lastModified failed, trying without sort...")
             
-            var items: [Item] = []
-            for (_, result) in matchResults {
-                switch result {
-                case .success(let record):
-                    if let item = Item.fromCKRecord(record) {
-                        items.append(item)
-                        print("Fetched item from \(environment): \(item.title)")
-                    }
-                case .failure(let error):
-                    print("Failed to fetch item record from \(environment): \(error)")
-                }
-            }
-            
-            print("Successfully fetched \(items.count) items from CloudKit \(environment) container")
-            return items
-        } catch let error as CKError {
-            print("CloudKit \(environment) fetch error: \(error)")
-            if error.code == .unknownItem {
-                print("Schema not set up yet in \(environment) container - returning empty array")
+            // Try without sort descriptors
+            query.sortDescriptors = nil
+            do {
+                let items = try await performQuery(query)
+                // Sort locally instead
+                return items.sorted { $0.lastModified > $1.lastModified }
+            } catch let error as CKError where error.code == .unknownItem {
+                print("Record type 'Item' doesn't exist yet - returning empty array")
                 return []
             }
-            throw CloudKitError.fetchFailed(error)
-        } catch {
-            print("General fetch error from \(environment) container: \(error)")
-            throw CloudKitError.fetchFailed(error)
+        } catch let error as CKError where error.code == .unknownItem {
+            print("Record type 'Item' doesn't exist yet - returning empty array")
+            return []
         }
+    }
+    
+    private func performQuery(_ query: CKQuery) async throws -> [Item] {
+        let records = try await privateDatabase.records(matching: query)
+        
+        var items: [Item] = []
+        for (_, result) in records.matchResults {
+            switch result {
+            case .success(let record):
+                if let item = Item.fromCKRecord(record) {
+                    items.append(item)
+                    print("Fetched item from \(environment): \(item.title)")
+                }
+            case .failure(let error):
+                print("Failed to fetch record: \(error)")
+            }
+        }
+        
+        return items
     }
     
     // MARK: - Delete Operations
@@ -179,13 +210,55 @@ class CloudKitManager: ObservableObject {
             let savedItem = try await saveItem(testItem)
             print("\(environment) container schema setup successful!")
             
+            // Wait a moment for schema propagation
+            try await Task.sleep(nanoseconds: 2_000_000_000) // 2 seconds
+            
             if let recordID = savedItem.recordID {
                 try await deleteItem(recordID: recordID)
                 print("Test item deleted from \(environment) container")
             }
+            
+            schemaSetupComplete = true
         } catch {
             print("\(environment) container schema setup failed: \(error)")
             throw error
+        }
+    }
+    
+    // MARK: - Schema Check
+    
+    func checkSchemaSetup() async -> Bool {
+        guard isAccountAvailable else { return false }
+        
+        do {
+            let query = CKQuery(recordType: "Item", predicate: NSPredicate(value: false))
+            let _ = try await privateDatabase.records(matching: query)
+            
+            await MainActor.run {
+                self.schemaSetupComplete = true
+            }
+            return true
+        } catch let error as CKError {
+            if error.code == .unknownItem {
+                print("Schema not set up yet in \(environment) container")
+                await MainActor.run {
+                    self.schemaSetupComplete = false
+                }
+                return false
+            } else if error.code == .invalidArguments {
+                // Schema exists but might have field issues
+                print("Schema exists but has field configuration issues")
+                await MainActor.run {
+                    self.schemaSetupComplete = true
+                }
+                return true
+            } else {
+                print("Error checking schema: \(error)")
+                return false
+            }
+        } catch {
+            print("Unexpected error checking schema: \(error)")
+            return false
         }
     }
 }
@@ -203,8 +276,14 @@ enum CloudKitError: LocalizedError {
         case .accountNotAvailable:
             return "iCloud account is not available. Please sign in to iCloud in Settings."
         case .saveFailed(let error):
+            if let ckError = error as? CKError, ckError.code == .unknownItem {
+                return "CloudKit schema not set up yet. Try 'Create CloudKit Schema' first."
+            }
             return "Failed to save to iCloud: \(error.localizedDescription)"
         case .fetchFailed(let error):
+            if let ckError = error as? CKError, ckError.code == .unknownItem {
+                return "CloudKit schema not set up yet. No items to fetch."
+            }
             return "Failed to fetch from iCloud: \(error.localizedDescription)"
         case .deleteFailed(let error):
             return "Failed to delete from iCloud: \(error.localizedDescription)"
