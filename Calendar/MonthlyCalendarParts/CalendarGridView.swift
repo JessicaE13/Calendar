@@ -130,7 +130,6 @@ struct CalendarGridView: View {
                 
                 Spacer()
                 
-                // Navigation controls grouped together
                 HStack(spacing: 0) {
                     Button(action: {
                         onMonthChange(.previous)
@@ -154,7 +153,6 @@ struct CalendarGridView: View {
                             )
                     }
                     .buttonStyle(PlainButtonStyle())
-                }
                 
                 Button(action: {
                     onMonthChange(.next)
@@ -166,8 +164,7 @@ struct CalendarGridView: View {
             }
             .padding(.horizontal, horizontalPadding)
             .padding(.bottom, 12)
-            
-            // Day headers - more prominent
+        }
             HStack {
                 ForEach(dayHeaders, id: \.id) { dayHeader in
                     Text(dayHeader.letter)
@@ -206,7 +203,6 @@ struct CalendarGridView: View {
             .padding(.horizontal, horizontalPadding)
         }
         .padding(.vertical, 12)
-        // Background removed - no more card styling
         .fixedSize(horizontal: true, vertical: false)
         .frame(maxWidth: .infinity)
         .gesture(
@@ -225,7 +221,7 @@ struct CalendarGridView: View {
         )
         .sheet(isPresented: $showingDatePicker) {
             VStack(spacing: 30) {
-                // Close button
+
                 HStack {
                     Spacer()
                     Button(action: {
@@ -237,11 +233,11 @@ struct CalendarGridView: View {
                     }
                     .buttonStyle(PlainButtonStyle())
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 20)
+                .padding(.horizontal, 24)
+                .padding(.top, 24)
                 
                 HStack(spacing: 20) {
-                    // Month Picker
+     
                     VStack(spacing: 8) {
                         Text("Month")
                             .font(.headline)
@@ -261,7 +257,7 @@ struct CalendarGridView: View {
                         .pickerStyle(WheelPickerStyle())
                     }
                     
-                    // Year Picker
+
                     VStack(spacing: 8) {
                         Text("Year")
                             .font(.headline)
