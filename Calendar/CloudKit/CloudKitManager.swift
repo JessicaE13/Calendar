@@ -2,7 +2,7 @@
 //  CloudKitManager.swift
 //  Calendar
 //
-//  Simplified version compatible with all iOS versions
+//  Fixed version that avoids queryable field issues
 //
 
 import Foundation
@@ -123,37 +123,39 @@ class CloudKitManager: ObservableObject {
         
         print("Fetching items from CloudKit \(environment) container...")
         
-        // Use simple query approach that's more compatible
-        let items = try await fetchWithCompatibleQuery()
+        // Use the most basic query possible - no sorting, no complex predicates
+        let items = try await fetchWithBasicQuery()
         
         print("Successfully fetched \(items.count) items from CloudKit \(environment) container")
         return items
     }
     
-    private func fetchWithCompatibleQuery() async throws -> [Item] {
-        // Use the most basic query possible to avoid field queryable issues
+    private func fetchWithBasicQuery() async throws -> [Item] {
+        // Use the most basic query that doesn't require any queryable fields
+        // NSPredicate(value: true) means "fetch all records"
         let query = CKQuery(recordType: "Item", predicate: NSPredicate(value: true))
         
+        // DO NOT add any sort descriptors - they might reference non-queryable fields
+        // query.sortDescriptors = nil
+        
         do {
-            // Try with sort first
-            query.sortDescriptors = [NSSortDescriptor(key: "lastModified", ascending: false)]
-            return try await performQuery(query)
-        } catch let error as CKError where error.code == .invalidArguments {
-            print("Sort by lastModified failed, trying without sort...")
-            
-            // Try without sort descriptors
-            query.sortDescriptors = nil
-            do {
-                let items = try await performQuery(query)
-                // Sort locally instead
-                return items.sorted { $0.lastModified > $1.lastModified }
-            } catch let error as CKError where error.code == .unknownItem {
-                print("Record type 'Item' doesn't exist yet - returning empty array")
-                return []
-            }
+            let items = try await performQuery(query)
+            // Sort locally instead of in CloudKit to avoid queryable field issues
+            return items.sorted { $0.lastModified > $1.lastModified }
         } catch let error as CKError where error.code == .unknownItem {
             print("Record type 'Item' doesn't exist yet - returning empty array")
             return []
+        } catch let error as CKError {
+            print("CloudKit query error: \(error)")
+            print("Error code: \(error.code.rawValue)")
+            
+            // If it's a queryable field error, we can't fix it here
+            // The user needs to set up the schema properly
+            if error.code == .invalidArguments {
+                print("This might be a field queryable issue. Try using CloudKit Console to fix schema.")
+            }
+            
+            throw CloudKitError.fetchFailed(error)
         }
     }
     
@@ -231,6 +233,7 @@ class CloudKitManager: ObservableObject {
         guard isAccountAvailable else { return false }
         
         do {
+            // Use the most basic query to check if the record type exists
             let query = CKQuery(recordType: "Item", predicate: NSPredicate(value: false))
             let _ = try await privateDatabase.records(matching: query)
             
@@ -245,16 +248,13 @@ class CloudKitManager: ObservableObject {
                     self.schemaSetupComplete = false
                 }
                 return false
-            } else if error.code == .invalidArguments {
-                // Schema exists but might have field issues
-                print("Schema exists but has field configuration issues")
+            } else {
+                // Schema exists, even if there are other issues
+                print("Schema exists but might have configuration issues: \(error)")
                 await MainActor.run {
                     self.schemaSetupComplete = true
                 }
                 return true
-            } else {
-                print("Error checking schema: \(error)")
-                return false
             }
         } catch {
             print("Unexpected error checking schema: \(error)")
@@ -283,6 +283,8 @@ enum CloudKitError: LocalizedError {
         case .fetchFailed(let error):
             if let ckError = error as? CKError, ckError.code == .unknownItem {
                 return "CloudKit schema not set up yet. No items to fetch."
+            } else if let ckError = error as? CKError, ckError.code == .invalidArguments {
+                return "CloudKit schema needs configuration. Please check CloudKit Console for field settings."
             }
             return "Failed to fetch from iCloud: \(error.localizedDescription)"
         case .deleteFailed(let error):
