@@ -2,7 +2,7 @@
 //  CalendarGridView.swift
 //  Calendar
 //
-//  Simplified version - shows only the current month without carousel
+//  Updated to fit background frame to calendar content
 //
 
 import SwiftUI
@@ -11,10 +11,23 @@ struct CalendarGridView: View {
     let currentMonth: Date
     @Binding var selectedDate: Date
     
-    // Callback for month changes
+    // Callbacks
     let onMonthChange: (SwipeDirection) -> Void
+    let onDateJump: ((Date) -> Void)?
+    
+    // State for date picker
+    @State private var showingDatePicker = false
+    @State private var pickerDate: Date
     
     private let calendar = Calendar.current
+    
+    init(currentMonth: Date, selectedDate: Binding<Date>, onMonthChange: @escaping (SwipeDirection) -> Void, onDateJump: ((Date) -> Void)? = nil) {
+        self.currentMonth = currentMonth
+        self._selectedDate = selectedDate
+        self.onMonthChange = onMonthChange
+        self.onDateJump = onDateJump
+        self._pickerDate = State(initialValue: currentMonth)
+    }
     
     // Use an array of tuples with unique identifiers
     private let dayHeaders = [
@@ -73,6 +86,18 @@ struct CalendarGridView: View {
         return weeks
     }
     
+    private var yearRange: Range<Int> {
+        let currentYear = calendar.component(.year, from: Date())
+        return (currentYear - 10)..<(currentYear + 10)
+    }
+    
+    private func monthName(for month: Int) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM"
+        let date = calendar.date(from: DateComponents(month: month)) ?? Date()
+        return formatter.string(from: date)
+    }
+    
     var body: some View {
         VStack(spacing: 0) {
             // Month/Year header with navigation
@@ -87,10 +112,16 @@ struct CalendarGridView: View {
                 
                 Spacer()
                 
-                Text(monthYearString)
-                    .font(.system(.title2, design: .serif))
-                    .fontWeight(.bold)
-                    .foregroundColor(.primary)
+                Button(action: {
+                    pickerDate = currentMonth
+                    showingDatePicker = true
+                }) {
+                    Text(monthYearString)
+                        .font(.system(.title2, design: .serif))
+                        .fontWeight(.bold)
+                        .foregroundColor(.primary)
+                }
+                .buttonStyle(PlainButtonStyle())
                 
                 Spacer()
                 
@@ -141,9 +172,8 @@ struct CalendarGridView: View {
                 }
             }
             .padding(.horizontal, 24)
-            .padding(.bottom, 16)
         }
-        .padding(.vertical, 24)
+        .padding(.vertical, 16)
         .background(
             RoundedRectangle(cornerRadius: 24)
                 .fill(
@@ -163,7 +193,8 @@ struct CalendarGridView: View {
                 .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 10)
                 .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
         )
-        .padding(.horizontal, 30)
+        .fixedSize(horizontal: true, vertical: false)
+        .frame(maxWidth: .infinity)
         .gesture(
             DragGesture()
                 .onEnded { value in
@@ -178,6 +209,99 @@ struct CalendarGridView: View {
                     }
                 }
         )
+        .sheet(isPresented: $showingDatePicker) {
+            VStack(spacing: 30) {
+                // Close button
+                HStack {
+                    Spacer()
+                    Button(action: {
+                        showingDatePicker = false
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.title2)
+                            .foregroundColor(.secondary)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 20)
+                
+                HStack(spacing: 20) {
+                    // Month Picker
+                    VStack(spacing: 8) {
+                        Text("Month")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        Picker("Month", selection: Binding(
+                            get: { calendar.component(.month, from: pickerDate) },
+                            set: { newMonth in
+                                let year = calendar.component(.year, from: pickerDate)
+                                pickerDate = calendar.date(from: DateComponents(year: year, month: newMonth)) ?? pickerDate
+                            }
+                        )) {
+                            ForEach(1...12, id: \.self) { month in
+                                Text(monthName(for: month))
+                                    .tag(month)
+                            }
+                        }
+                        .pickerStyle(WheelPickerStyle())
+                    }
+                    
+                    // Year Picker
+                    VStack(spacing: 8) {
+                        Text("Year")
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        Picker("Year", selection: Binding(
+                            get: { calendar.component(.year, from: pickerDate) },
+                            set: { newYear in
+                                let month = calendar.component(.month, from: pickerDate)
+                                pickerDate = calendar.date(from: DateComponents(year: newYear, month: month)) ?? pickerDate
+                            }
+                        )) {
+                            ForEach(yearRange, id: \.self) { year in
+                                Text(String(year))
+                                    .tag(year)
+                            }
+                        }
+                        .pickerStyle(WheelPickerStyle())
+                    }
+                }
+                .frame(height: 150)
+                .padding(.horizontal, 20)
+                
+                // Update button
+                Button("Update") {
+                    // Calculate the number of months to jump
+                    let monthDifference = calendar.dateComponents([.month], from: currentMonth, to: pickerDate).month ?? 0
+                    
+                    // Apply the month changes
+                    for _ in 0..<abs(monthDifference) {
+                        if monthDifference > 0 {
+                            onMonthChange(.next)
+                        } else if monthDifference < 0 {
+                            onMonthChange(.previous)
+                        }
+                    }
+                    
+                    // If we have a direct jump callback, use it instead
+                    onDateJump?(pickerDate)
+                    
+                    showingDatePicker = false
+                }
+                .font(.title3)
+                .fontWeight(.semibold)
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(Color("Accent1"))
+                .cornerRadius(10)
+                .padding(.horizontal, 20)
+                
+                Spacer()
+            }
+            .presentationDetents([.height(350)])
+        }
     }
 }
 
@@ -196,6 +320,9 @@ struct CalendarGridView: View {
             selectedDate: $selectedDate,
             onMonthChange: { direction in
                 print("Month changed: \(direction)")
+            },
+            onDateJump: { date in
+                print("Date jumped to: \(date)")
             }
         )
     }
