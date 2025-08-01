@@ -73,7 +73,7 @@ struct ContentView: View {
                 )
                 
                 Text("Entitlements container: \(CKContainer.default().containerIdentifier ?? "nil")")
-                Text("Explicit container: \(CKContainer(identifier: "iCloud.com.estes.Calendar").containerIdentifier ?? "nil")")
+                Text("Explicit container: \(CKContainer(identifier: "iCloud.com.estes.Dev").containerIdentifier ?? "nil")")
 
                 
                 HStack {

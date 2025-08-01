@@ -2,7 +2,7 @@
 //  CloudKitManager.swift
 //  Calendar
 //
-//  Minimal fix - keep using "Item" record type for CloudKit compatibility
+//  Configurable version that can switch between containers
 //
 
 import Foundation
@@ -13,8 +13,26 @@ import Combine
 class CloudKitManager: ObservableObject {
     static let shared = CloudKitManager()
     
-    private let container = CKContainer.default()
-    let privateDatabase: CKDatabase 
+    // Configuration enum for different environments
+    enum ContainerEnvironment {
+        case production
+        case development
+        
+        var containerIdentifier: String {
+            switch self {
+            case .production:
+                return "iCloud.com.estes.Calendar"
+            case .development:
+                return "iCloud.com.estes.Dev"
+            }
+        }
+    }
+    
+    // Change this to switch containers
+    private let environment: ContainerEnvironment = .development
+    
+    private let container: CKContainer
+    let privateDatabase: CKDatabase
     
     @Published var accountStatus: CKAccountStatus = .couldNotDetermine
     @Published var isAccountAvailable = false
@@ -22,19 +40,17 @@ class CloudKitManager: ObservableObject {
     @Published var lastSyncDate: Date?
     
     init() {
+        self.container = CKContainer(identifier: environment.containerIdentifier)
         self.privateDatabase = container.privateCloudDatabase
-     
         
-         
-            // Debug info - add these lines
-            print("=== CloudKit Debug Info ===")
-            print("CloudKit Container ID: \(container.containerIdentifier ?? "Unknown")")
-            print("App Bundle ID: \(Bundle.main.bundleIdentifier ?? "Unknown")")
-            print("Expected format: iCloud.{bundleID}")
-            print("========================")
-            
-            checkAccountStatus()
+        // Debug info
+        print("=== CloudKit Debug Info ===")
+        print("Environment: \(environment)")
+        print("CloudKit Container ID: \(container.containerIdentifier ?? "Unknown")")
+        print("App Bundle ID: \(Bundle.main.bundleIdentifier ?? "Unknown")")
+        print("========================")
         
+        checkAccountStatus()
     }
     
     // MARK: - Account Status
@@ -49,7 +65,7 @@ class CloudKitManager: ObservableObject {
                     print("CloudKit account error: \(error.localizedDescription)")
                 }
                 
-                print("CloudKit account status: \(status)")
+                print("CloudKit account status: \(status) for \(self?.environment.containerIdentifier ?? "unknown")")
             }
         }
     }
@@ -66,15 +82,15 @@ class CloudKitManager: ObservableObject {
         
         let record = updatedItem.toCKRecord()
         
-        print("Saving item to CloudKit: \(item.title)")
+        print("Saving item to CloudKit (\(environment)): \(item.title)")
         
         do {
             let savedRecord = try await privateDatabase.save(record)
             updatedItem.recordID = savedRecord.recordID
-            print("Successfully saved item: \(item.title)")
+            print("Successfully saved item to \(environment) container: \(item.title)")
             return updatedItem
         } catch {
-            print("Failed to save item: \(error)")
+            print("Failed to save item to \(environment) container: \(error)")
             throw CloudKitError.saveFailed(error)
         }
     }
@@ -86,7 +102,6 @@ class CloudKitManager: ObservableObject {
             throw CloudKitError.accountNotAvailable
         }
         
-        // Set syncing state directly since we're @MainActor
         isSyncing = true
         
         defer {
@@ -97,7 +112,7 @@ class CloudKitManager: ObservableObject {
         let query = CKQuery(recordType: "Item", predicate: NSPredicate(value: true))
         query.sortDescriptors = [NSSortDescriptor(key: "lastModified", ascending: false)]
         
-        print("Fetching items from CloudKit...")
+        print("Fetching items from CloudKit \(environment) container...")
         
         do {
             let (matchResults, _) = try await privateDatabase.records(matching: query)
@@ -108,25 +123,24 @@ class CloudKitManager: ObservableObject {
                 case .success(let record):
                     if let item = Item.fromCKRecord(record) {
                         items.append(item)
-                        print("Fetched item: \(item.title)")
+                        print("Fetched item from \(environment): \(item.title)")
                     }
                 case .failure(let error):
-                    print("Failed to fetch item record: \(error)")
+                    print("Failed to fetch item record from \(environment): \(error)")
                 }
             }
             
-            print("Successfully fetched \(items.count) items from CloudKit")
+            print("Successfully fetched \(items.count) items from CloudKit \(environment) container")
             return items
         } catch let error as CKError {
-            print("CloudKit fetch error: \(error)")
-            // Handle specific CloudKit errors
+            print("CloudKit \(environment) fetch error: \(error)")
             if error.code == .unknownItem {
-                print("Schema not set up yet - returning empty array")
+                print("Schema not set up yet in \(environment) container - returning empty array")
                 return []
             }
             throw CloudKitError.fetchFailed(error)
         } catch {
-            print("General fetch error: \(error)")
+            print("General fetch error from \(environment) container: \(error)")
             throw CloudKitError.fetchFailed(error)
         }
     }
@@ -138,13 +152,13 @@ class CloudKitManager: ObservableObject {
             throw CloudKitError.accountNotAvailable
         }
         
-        print("Deleting item from CloudKit: \(recordID)")
+        print("Deleting item from CloudKit \(environment) container: \(recordID)")
         
         do {
             _ = try await privateDatabase.deleteRecord(withID: recordID)
-            print("Successfully deleted item from CloudKit")
+            print("Successfully deleted item from \(environment) container")
         } catch {
-            print("Failed to delete item: \(error)")
+            print("Failed to delete item from \(environment) container: \(error)")
             throw CloudKitError.deleteFailed(error)
         }
     }
@@ -152,27 +166,25 @@ class CloudKitManager: ObservableObject {
     // MARK: - Schema Setup Helper
     
     func setupSchema() async throws {
-        print("Setting up CloudKit schema...")
+        print("Setting up CloudKit schema in \(environment) container...")
         
-        // Create a test item to establish the schema
         let testItem = Item(
-            title: "CloudKit Schema Setup Item",
-            description: "This item establishes the CloudKit schema",
+            title: "CloudKit \(environment) Schema Setup Item",
+            description: "This item establishes the CloudKit schema in \(environment) container",
             assignedDate: Date(),
             sortOrder: 0
         )
         
         do {
             let savedItem = try await saveItem(testItem)
-            print("Schema setup successful!")
+            print("\(environment) container schema setup successful!")
             
-            // Optionally delete the test item
             if let recordID = savedItem.recordID {
                 try await deleteItem(recordID: recordID)
-                print("Test item deleted")
+                print("Test item deleted from \(environment) container")
             }
         } catch {
-            print("Schema setup failed: \(error)")
+            print("\(environment) container schema setup failed: \(error)")
             throw error
         }
     }
@@ -199,4 +211,3 @@ enum CloudKitError: LocalizedError {
         }
     }
 }
-
