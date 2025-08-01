@@ -21,7 +21,7 @@ struct ContentView: View {
 ////                        Image(systemName: cloudKitStatusIcon)
 ////                            .foregroundColor(cloudKitStatusColor)
 ////                            .font(.caption)
-////                        
+////
 ////                        if itemManager.isLoading {
 ////                            ProgressView()
 ////                                .scaleEffect(0.6)
@@ -34,7 +34,7 @@ struct ContentView: View {
 ////                            showingCloudKitTest = true
 ////                        }
 ////                    }
-////                    
+////
 ////                    // CloudKit Test Button (keep for debugging)
 ////                    Button("CloudKit Test") {
 ////                        showingCloudKitTest = true
@@ -44,9 +44,9 @@ struct ContentView: View {
 ////                    .padding(.vertical, 4)
 ////                    .background(Color.blue.opacity(0.2))
 ////                    .cornerRadius(4)
-//                    
+//
 //                    Spacer()
-//                    
+//
 //                    // Last sync indicator
 //                    if let lastSync = itemManager.lastSyncDate {
 //                        Text("Synced \(timeAgoString(from: lastSync))")
@@ -56,13 +56,16 @@ struct ContentView: View {
 //                }
 //                .padding(.horizontal)
 //                .padding(.top)
-//                
+//
                 // Calendar with carousel functionality
                 CalendarGridView(
                     currentMonth: currentMonth,
                     selectedDate: $selectedDate,
                     onMonthChange: { direction in
                         handleMonthChange(direction: direction)
+                    },
+                    onDateJump: { date in
+                        handleDateJump(to: date)
                     }
                 )
                 .padding(.top, 20)
@@ -115,6 +118,13 @@ struct ContentView: View {
         if let newMonth = Calendar.current.date(byAdding: .month, value: increment, to: currentMonth) {
             currentMonth = newMonth
         }
+    }
+    
+    // MARK: - Date Jump Navigation
+    
+    private func handleDateJump(to date: Date) {
+        currentMonth = Calendar.current.startOfDay(for: date)
+        selectedDate = date
     }
     
     // MARK: - CloudKit Status Helpers

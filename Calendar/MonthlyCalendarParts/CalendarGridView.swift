@@ -2,7 +2,7 @@
 //  CalendarGridView.swift
 //  Calendar
 //
-//  Updated to be smaller and more compact
+//  Updated with Today button and background removed
 //
 
 import SwiftUI
@@ -21,9 +21,9 @@ struct CalendarGridView: View {
     
     private let calendar = Calendar.current
     
-    // Size configuration for smaller calendar
-    private let daySize: CGFloat = 26
-    private let gridSpacing: CGFloat = 5
+    // Size configuration for calendar
+    private let daySize: CGFloat = 32
+    private let gridSpacing: CGFloat = 6
     private let horizontalPadding: CGFloat = 18
     
     init(currentMonth: Date, selectedDate: Binding<Date>, onMonthChange: @escaping (SwipeDirection) -> Void, onDateJump: ((Date) -> Void)? = nil) {
@@ -103,61 +103,91 @@ struct CalendarGridView: View {
         return formatter.string(from: date)
     }
     
+    private func goToToday() {
+        let today = Date()
+        selectedDate = today
+        
+        // Navigate to today's month if we're not already there
+        if !calendar.isDate(currentMonth, equalTo: today, toGranularity: .month) {
+            onDateJump?(today)
+        }
+    }
+    
     var body: some View {
         VStack(spacing: 0) {
-            // Month/Year header with navigation - more compact
+            // Month/Year header with navigation and Today button
             HStack {
-                Button(action: {
-                    onMonthChange(.previous)
-                }) {
-                    Image(systemName: "chevron.left")
-                        .font(.title3) // Smaller than title2
-                        .foregroundColor(Color("Accent1"))
-                }
-                
-                Spacer()
-                
                 Button(action: {
                     pickerDate = currentMonth
                     showingDatePicker = true
                 }) {
                     Text(monthYearString)
-                        .font(.system(.title3, design: .serif)) // Smaller font
-                        .fontWeight(.semibold) // Reduced weight
+                        .font(.system(.title, design: .serif))
+                        .fontWeight(.semibold)
                         .foregroundColor(.primary)
                 }
                 .buttonStyle(PlainButtonStyle())
+                .padding(.bottom, 12)
+                .padding(.leading, 24)
                 
                 Spacer()
                 
-                Button(action: {
-                    onMonthChange(.next)
-                }) {
-                    Image(systemName: "chevron.right")
-                        .font(.title3) // Smaller than title2
-                        .foregroundColor(Color("Accent1"))
+                // Navigation controls grouped together
+                HStack(spacing: 8) {
+                    Button(action: {
+                        onMonthChange(.previous)
+                    }) {
+                        Image(systemName: "chevron.left")
+                            .font(.title3)
+                            .foregroundColor(Color("Accent1"))
+                    }
+                    
+                    // Today button
+                    Button(action: goToToday) {
+                        Text("Today")
+                            .font(.system(size: 12))
+                            .fontWeight(.medium)
+                            .foregroundColor(Color("Accent1"))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(Color("Accent1"), lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    
+                    
+                    Button(action: {
+                        onMonthChange(.next)
+                    }) {
+                        Image(systemName: "chevron.right")
+                            .font(.title3)
+                            .foregroundColor(Color("Accent1"))
+                    }
                 }
+                .padding(.horizontal, horizontalPadding)
+                .padding(.bottom, 12)
             }
-            .padding(.horizontal, horizontalPadding)
-            .padding(.bottom, 12) // Reduced padding
             
-            // Day headers - more compact
+            // Day headers - more prominent
             HStack {
                 ForEach(dayHeaders, id: \.id) { dayHeader in
                     Text(dayHeader.letter)
-                        .font(.system(size: 9)) // Smaller font
-                        .fontWeight(.medium) // Reduced weight
-                        .tracking(0.5) // Reduced tracking
-                        .foregroundColor(.secondary)
+                        .font(.system(size: 12))
+                        .fontWeight(.semibold)
+                        .tracking(0.5)
+                        .foregroundColor(.primary.opacity(0.8))
                         .frame(width: daySize)
                 }
             }
             .padding(.horizontal, horizontalPadding)
-            .padding(.bottom, 6) // Reduced padding
+            .padding(.bottom, 6)
+            .padding(.top, 6)
             
             Divider()
                 .padding(.horizontal, horizontalPadding)
-                .padding(.bottom, 6) // Reduced padding
+                .padding(.bottom, 6)
             
             // Calendar grid - smaller and more compact
             LazyVGrid(columns: Array(repeating: GridItem(.fixed(daySize)), count: 7), spacing: gridSpacing) {
@@ -179,26 +209,8 @@ struct CalendarGridView: View {
             }
             .padding(.horizontal, horizontalPadding)
         }
-        .padding(.vertical, 12) // Reduced padding
-        .background(
-            RoundedRectangle(cornerRadius: 20) // Slightly smaller corner radius
-                .fill(
-                    LinearGradient(
-                        gradient: Gradient(colors: [
-                            Color.white.opacity(0.95),
-                            Color.white.opacity(0.85)
-                        ]),
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20)
-                        .stroke(Color.white.opacity(0.5), lineWidth: 1)
-                )
-                .shadow(color: .black.opacity(0.12), radius: 15, x: 0, y: 8) // Reduced shadow
-                .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
-        )
+        .padding(.vertical, 12)
+        // Background removed - no more card styling
         .fixedSize(horizontal: true, vertical: false)
         .frame(maxWidth: .infinity)
         .gesture(
@@ -348,8 +360,8 @@ struct CompactCalendarDayView: View {
                     )
                 
                 Text(dayString)
-                    .font(.system(size: 11)) // Smaller font
-                    .fontWeight(.medium) // Reduced weight
+                    .font(.system(size: 13))
+                    .fontWeight(.medium)
                     .monospacedDigit()
                     .foregroundColor(textColor)
                     .frame(width: daySize - 6)
