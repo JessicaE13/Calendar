@@ -30,8 +30,8 @@ enum RoutineType: String, CaseIterable, Codable {
     
     var gradientColors: [Color] {
         switch self {
-        case .morning: return [Color("Accent3").opacity(0.8), Color("Accent3").opacity(0.6)]
-        case .evening: return [Color.purple.opacity(0.8), Color.indigo.opacity(0.6)]
+        case .morning: return [Color("Accent3")]
+        case .evening: return [Color("Accent4")]
         }
     }
 }

@@ -188,10 +188,10 @@ struct RoutineCardView: View {
             .padding(.vertical, 10)
             .frame(height: 60) // Slightly reduced height
             .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.white.opacity(0.8))
+                RoundedRectangle(cornerRadius: 16)
+                    .fill(Color.clear.opacity(0.8))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 12)
+                        RoundedRectangle(cornerRadius: 16)
                             .stroke(
                                 progress?.isCompleted == true
                                     ? Color.green.opacity(0.3)
@@ -206,15 +206,6 @@ struct RoutineCardView: View {
         .animation(.easeInOut(duration: 0.2), value: progress?.isCompleted)
     }
 }
-
-//
-//  RoutineDetailComponents.swift
-//  Calendar
-//
-//  Broken down components for better maintainability and reusability
-//
-
-import SwiftUI
 
 // MARK: - Main Routine Detail View (Simplified)
 struct RoutineDetailView: View {
