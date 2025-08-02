@@ -31,7 +31,7 @@ enum RichTextLineType: Codable, CaseIterable {
 
 // MARK: - Rich Text Line Model
 struct RichTextLine: Identifiable, Codable {
-    let id = UUID()
+    var id = UUID()
     var content: String
     var type: RichTextLineType
     var isCompleted: Bool = false

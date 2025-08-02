@@ -2,8 +2,8 @@
 //  ItemRowView.swift
 //  Calendar
 //
-//  Complete file with Rich Text Editor integration
-//  Updated with inline editing and edit mode functionality
+//  Complete file with Rich Text Editor integration and recurring task support
+//  Updated with inline editing, edit mode functionality, and recurring indicators
 //
 
 import SwiftUI
@@ -32,6 +32,21 @@ struct ItemRowView: View {
         let period = formatter.string(from: time).uppercased()
         
         return (timeString, period)
+    }
+    
+    private var recurringIndicator: String {
+        if item.isRecurringParent {
+            switch item.recurrencePattern.frequency {
+            case .daily: return "🔄"
+            case .weekly: return "📅"
+            case .monthly: return "🗓️"
+            case .yearly: return "🎂"
+            case .none: return ""
+            }
+        } else if item.isRecurringInstance {
+            return "🔗" // Link icon for recurring instances
+        }
+        return ""
     }
     
     var body: some View {
@@ -63,6 +78,13 @@ struct ItemRowView: View {
                                 .baselineOffset(-5) // Align with the bottom of the numbers
                             Text(" \(item.title)")
                                 .font(.system(size: 16))
+                            
+                            // Recurring indicator
+                            if !recurringIndicator.isEmpty {
+                                Text(" \(recurringIndicator)")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.secondary)
+                            }
                         }
                         .strikethrough(item.isCompleted)
                         .foregroundColor(item.isCompleted ? .secondary : .primary)
@@ -75,12 +97,21 @@ struct ItemRowView: View {
                         )
                     } else {
                         // Item without time - no background
-                        Text(item.title)
-                            .font(.system(size: 16))
-                            .padding(.vertical, 8)
-                            .strikethrough(item.isCompleted)
-                            .foregroundColor(item.isCompleted ? .secondary : .primary)
-                            .multilineTextAlignment(.leading)
+                        HStack(spacing: 4) {
+                            Text(item.title)
+                                .font(.system(size: 16))
+                                .padding(.vertical, 8)
+                                .strikethrough(item.isCompleted)
+                                .foregroundColor(item.isCompleted ? .secondary : .primary)
+                                .multilineTextAlignment(.leading)
+                            
+                            // Recurring indicator
+                            if !recurringIndicator.isEmpty {
+                                Text(recurringIndicator)
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.secondary)
+                            }
+                        }
                     }
                 }
                 
@@ -101,7 +132,7 @@ struct ItemRowView: View {
     }
 }
 
-// MARK: - Item Details View with Rich Text Editor
+// MARK: - Item Details View with Rich Text Editor and Recurring Support
 struct ItemDetailsView: View {
     let item: Item
     @ObservedObject var itemManager: ItemManager
@@ -116,6 +147,10 @@ struct ItemDetailsView: View {
     @State private var showingAddChecklistItem = false
     @State private var newChecklistItemTitle = ""
     @State private var editedChecklist: [ChecklistItem] = []
+    
+    // Recurring pattern editing states
+    @State private var editedRecurrencePattern = RecurrencePattern()
+    @State private var showingRecurrenceOptions = false
     
     private var formattedDate: String {
         let formatter = DateFormatter()
@@ -151,11 +186,55 @@ struct ItemDetailsView: View {
         }
     }
     
+    private var recurrenceDescription: String {
+        let pattern = isEditMode ? editedRecurrencePattern : item.recurrencePattern
+        
+        if !pattern.isRecurring {
+            return "Never"
+        }
+        
+        let baseDescription = pattern.interval == 1 ? pattern.frequency.displayName : "Every \(pattern.interval) \(pattern.frequency.rawValue)s"
+        
+        var description = baseDescription
+        
+        if let endDate = pattern.endDate {
+            let formatter = DateFormatter()
+            formatter.dateStyle = .medium
+            description += " until \(formatter.string(from: endDate))"
+        } else if let maxOccurrences = pattern.maxOccurrences {
+            description += " for \(maxOccurrences) times"
+        }
+        
+        return description
+    }
+    
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
                 ScrollView {
                     VStack(spacing: 24) {
+                        // Recurring Task Info Banner (if applicable)
+                        if item.isRecurringInstance {
+                            VStack(alignment: .leading, spacing: 8) {
+                                HStack {
+                                    Image(systemName: "arrow.triangle.2.circlepath")
+                                        .foregroundColor(.blue)
+                                    Text("This is part of a recurring series")
+                                        .font(.system(size: 14))
+                                        .foregroundColor(.blue)
+                                    Spacer()
+                                }
+                                Text("Changes will only affect this occurrence")
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.secondary)
+                            }
+                            .padding(12)
+                            .background(Color.blue.opacity(0.1))
+                            .cornerRadius(8)
+                            
+                            Divider()
+                        }
+                        
                         // Item Name Section
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Name")
@@ -379,6 +458,57 @@ struct ItemDetailsView: View {
                             }
                         }
                         
+                        Divider()
+                        
+                        // Recurrence Section (only show for non-instances or when editing)
+                        if !item.isRecurringInstance || isEditMode {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Repeat")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.secondary)
+                                    .textCase(.uppercase)
+                                    .tracking(1)
+                                
+                                if isEditMode {
+                                    Button(action: {
+                                        showingRecurrenceOptions = true
+                                    }) {
+                                        HStack {
+                                            Image(systemName: "arrow.triangle.2.circlepath")
+                                                .foregroundColor(.secondary)
+                                            
+                                            Text(recurrenceDescription)
+                                                .font(.system(size: 18))
+                                                .foregroundColor(.primary)
+                                            
+                                            Spacer()
+                                            
+                                            Image(systemName: "chevron.right")
+                                                .foregroundColor(.secondary)
+                                                .font(.system(size: 14))
+                                        }
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                } else {
+                                    HStack {
+                                        Image(systemName: "arrow.triangle.2.circlepath")
+                                            .foregroundColor(.secondary)
+                                        
+                                        Text(recurrenceDescription)
+                                            .font(.system(size: 18))
+                                            .contentShape(Rectangle())
+                                            .onTapGesture {
+                                                enterEditMode()
+                                            }
+                                        
+                                        Spacer()
+                                    }
+                                }
+                            }
+                            
+                            Divider()
+                        }
+                        
                         Spacer(minLength: 40)
                         
                         // Edit/Save button at bottom
@@ -428,7 +558,7 @@ struct ItemDetailsView: View {
                 setupEditableValues()
             }
         }
-        .presentationDetents([.height(600), .large])
+        .presentationDetents([.height(700), .large])
         .alert("Add Checklist Item", isPresented: $showingAddChecklistItem) {
             TextField("Item title", text: $newChecklistItemTitle)
             Button("Add") {
@@ -447,6 +577,12 @@ struct ItemDetailsView: View {
         } message: {
             Text("Enter the title for the new checklist item")
         }
+        .sheet(isPresented: $showingRecurrenceOptions) {
+            RecurrenceOptionsView(
+                recurrencePattern: $editedRecurrencePattern,
+                isPresented: $showingRecurrenceOptions
+            )
+        }
     }
     
     // MARK: - Helper Methods
@@ -457,6 +593,7 @@ struct ItemDetailsView: View {
         editedTime = item.assignedTime ?? Date()
         hasTime = item.assignedTime != nil
         editedChecklist = item.checklist
+        editedRecurrencePattern = item.recurrencePattern
         
         // Convert description to rich text lines
         if item.description.isEmpty {
@@ -485,6 +622,11 @@ struct ItemDetailsView: View {
         
         // Update checklist with proper sync
         updateItemChecklist()
+        
+        // Update recurrence pattern (only for non-instances)
+        if !item.isRecurringInstance {
+            itemManager.updateRecurringPattern(item, pattern: editedRecurrencePattern)
+        }
         
         withAnimation(.easeInOut(duration: 0.3)) {
             isEditMode = false

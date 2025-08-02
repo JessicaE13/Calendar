@@ -2,7 +2,7 @@
 //  ItemListView.swift
 //  Calendar
 //
-//  EXPLICIT DRAG AND DROP IMPLEMENTATION
+//  EXPLICIT DRAG AND DROP IMPLEMENTATION WITH RECURRING TASK SUPPORT
 //
 
 import SwiftUI
@@ -123,7 +123,7 @@ struct ItemListView: View {
         .onAppear {
             loadDisplayItems()
         }
-        .onChange(of: selectedDate) { _ in
+        .onChange(of: selectedDate) {
             loadDisplayItems()
         }
         .sheet(isPresented: $showingAddItem) {
@@ -285,6 +285,28 @@ struct AddItemView: View {
     @State private var itemTitle = ""
     @State private var hasTime = false
     @State private var selectedTime = Date()
+    @State private var recurrencePattern = RecurrencePattern()
+    @State private var showingRecurrenceOptions = false
+    
+    private var recurrenceDescription: String {
+        if !recurrencePattern.isRecurring {
+            return "Never"
+        }
+        
+        let baseDescription = recurrencePattern.interval == 1 ? recurrencePattern.frequency.displayName : "Every \(recurrencePattern.interval) \(recurrencePattern.frequency.rawValue)s"
+        
+        var description = baseDescription
+        
+        if let endDate = recurrencePattern.endDate {
+            let formatter = DateFormatter()
+            formatter.dateStyle = .medium
+            description += " until \(formatter.string(from: endDate))"
+        } else if let maxOccurrences = recurrencePattern.maxOccurrences {
+            description += " for \(maxOccurrences) times"
+        }
+        
+        return description
+    }
     
     var body: some View {
         NavigationView {
@@ -311,6 +333,36 @@ struct AddItemView: View {
                     }
                 }
                 
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Repeat")
+                        .font(.system(size: 16))
+                        .fontWeight(.medium)
+                    
+                    Button(action: {
+                        showingRecurrenceOptions = true
+                    }) {
+                        HStack {
+                            Image(systemName: "arrow.triangle.2.circlepath")
+                                .foregroundColor(.secondary)
+                            
+                            Text(recurrenceDescription)
+                                .font(.system(size: 16))
+                                .foregroundColor(.primary)
+                            
+                            Spacer()
+                            
+                            Image(systemName: "chevron.right")
+                                .foregroundColor(.secondary)
+                                .font(.system(size: 12))
+                        }
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                        .background(Color.gray.opacity(0.1))
+                        .cornerRadius(8)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+                
                 Spacer()
                 
                 HStack(spacing: 16) {
@@ -322,12 +374,19 @@ struct AddItemView: View {
                     Spacer()
                     
                     Button("Add Item") {
-                        let newItem = Item(
+                        var newItem = Item(
                             title: itemTitle,
                             assignedDate: selectedDate,
                             assignedTime: hasTime ? selectedTime : nil,
                             sortOrder: itemManager.items.count
                         )
+                        
+                        // Set up recurring pattern if specified
+                        if recurrencePattern.isRecurring {
+                            newItem.recurrencePattern = recurrencePattern
+                            newItem.isRecurringParent = true
+                        }
+                        
                         itemManager.addItem(newItem)
                         onItemAdded()
                         isPresented = false
@@ -341,7 +400,13 @@ struct AddItemView: View {
             .navigationTitle("New Item")
             .navigationBarTitleDisplayMode(.inline)
         }
-        .presentationDetents([.height(400)])
+        .presentationDetents([.height(500)])
+        .sheet(isPresented: $showingRecurrenceOptions) {
+            RecurrenceOptionsView(
+                recurrencePattern: $recurrencePattern,
+                isPresented: $showingRecurrenceOptions
+            )
+        }
     }
 }
 

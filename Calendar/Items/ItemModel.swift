@@ -2,12 +2,50 @@
 //  ItemModel.swift
 //  Calendar
 //
-//  Enhanced with smart chronological/manual ordering system
+//  Enhanced with recurring task functionality
 //
 
 import Foundation
 import CloudKit
 import Combine
+
+// MARK: - Recurrence Pattern
+
+enum RecurrenceFrequency: String, CaseIterable, Codable {
+    case none = "none"
+    case daily = "daily"
+    case weekly = "weekly"
+    case monthly = "monthly"
+    case yearly = "yearly"
+    
+    var displayName: String {
+        switch self {
+        case .none: return "Never"
+        case .daily: return "Daily"
+        case .weekly: return "Weekly"
+        case .monthly: return "Monthly"
+        case .yearly: return "Yearly"
+        }
+    }
+}
+
+struct RecurrencePattern: Codable {
+    var frequency: RecurrenceFrequency = .none
+    var interval: Int = 1 // Every X days/weeks/months/years
+    var endDate: Date? = nil // When to stop recurring (optional)
+    var maxOccurrences: Int? = nil // Max number of occurrences (optional)
+    
+    var isRecurring: Bool {
+        return frequency != .none
+    }
+    
+    init(frequency: RecurrenceFrequency = .none, interval: Int = 1, endDate: Date? = nil, maxOccurrences: Int? = nil) {
+        self.frequency = frequency
+        self.interval = interval
+        self.endDate = endDate
+        self.maxOccurrences = maxOccurrences
+    }
+}
 
 // MARK: - ChecklistItem Model
 
@@ -26,7 +64,7 @@ struct ChecklistItem: Identifiable, Codable {
     }
 }
 
-// MARK: - Item Model (with smart ordering)
+// MARK: - Item Model (with recurring support)
 
 struct Item: Identifiable, Codable {
     var id = UUID()
@@ -40,7 +78,13 @@ struct Item: Identifiable, Codable {
     var recordID: CKRecord.ID?
     var lastModified: Date = Date()
     
-    // NEW: Track if this item's order has been manually set for this date
+    // Recurring task properties
+    var recurrencePattern: RecurrencePattern = RecurrencePattern()
+    var parentRecurringID: UUID? = nil // Links to the original recurring task
+    var isRecurringParent: Bool = false // True for the original recurring task template
+    var occurrenceDate: Date? = nil // For individual occurrences, which date they represent
+    
+    // Track if this item's order has been manually set for this date
     var hasCustomOrderForDate: [String: Bool] = [:] // dateString -> hasCustomOrder
     
     init(title: String, description: String = "", assignedDate: Date = Date(), assignedTime: Date? = nil, sortOrder: Int = 0) {
@@ -50,6 +94,15 @@ struct Item: Identifiable, Codable {
         self.assignedTime = assignedTime
         self.sortOrder = sortOrder
         self.lastModified = Date()
+    }
+    
+    // Helper properties for recurring tasks
+    var isRecurring: Bool {
+        return recurrencePattern.isRecurring
+    }
+    
+    var isRecurringInstance: Bool {
+        return parentRecurringID != nil
     }
     
     // Helper to get/set custom order flag for a specific date
@@ -72,6 +125,7 @@ struct Item: Identifiable, Codable {
     // Custom coding keys to handle CloudKit fields
     enum CodingKeys: String, CodingKey {
         case id, title, description, isCompleted, assignedDate, assignedTime, sortOrder, checklist, lastModified, hasCustomOrderForDate
+        case recurrencePattern, parentRecurringID, isRecurringParent, occurrenceDate
         // recordID is not encoded/decoded
     }
 }
@@ -91,6 +145,11 @@ extension Item {
         record["lastModified"] = lastModified
         record["userID"] = id.uuidString
         
+        // Recurring task fields
+        record["isRecurringParent"] = isRecurringParent ? 1 : 0
+        record["parentRecurringID"] = parentRecurringID?.uuidString
+        record["occurrenceDate"] = occurrenceDate
+        
         // Convert checklist to JSON data for storage
         if !checklist.isEmpty {
             do {
@@ -101,12 +160,20 @@ extension Item {
             }
         }
         
-        // NEW: Store custom order data
+        // Store custom order data
         do {
             let customOrderData = try JSONEncoder().encode(hasCustomOrderForDate)
             record["customOrderData"] = customOrderData
         } catch {
             print("Failed to encode custom order data: \(error)")
+        }
+        
+        // Store recurrence pattern
+        do {
+            let recurrenceData = try JSONEncoder().encode(recurrencePattern)
+            record["recurrencePattern"] = recurrenceData
+        } catch {
+            print("Failed to encode recurrence pattern: \(error)")
         }
         
         return record
@@ -132,6 +199,16 @@ extension Item {
         item.recordID = record.recordID
         item.lastModified = record["lastModified"] as? Date ?? Date()
         
+        // Recurring task fields
+        let isRecurringParentValue = record["isRecurringParent"] as? Int ?? 0
+        item.isRecurringParent = isRecurringParentValue == 1
+        
+        if let parentIDString = record["parentRecurringID"] as? String {
+            item.parentRecurringID = UUID(uuidString: parentIDString)
+        }
+        
+        item.occurrenceDate = record["occurrenceDate"] as? Date
+        
         if let userIDString = record["userID"] as? String,
            let userID = UUID(uuidString: userIDString) {
             item.id = userID
@@ -147,13 +224,23 @@ extension Item {
             }
         }
         
-        // NEW: Decode custom order data
+        // Decode custom order data
         if let customOrderData = record["customOrderData"] as? Data {
             do {
                 item.hasCustomOrderForDate = try JSONDecoder().decode([String: Bool].self, from: customOrderData)
             } catch {
                 print("Failed to decode custom order data: \(error)")
                 item.hasCustomOrderForDate = [:]
+            }
+        }
+        
+        // Decode recurrence pattern
+        if let recurrenceData = record["recurrencePattern"] as? Data {
+            do {
+                item.recurrencePattern = try JSONDecoder().decode(RecurrencePattern.self, from: recurrenceData)
+            } catch {
+                print("Failed to decode recurrence pattern: \(error)")
+                item.recurrencePattern = RecurrencePattern()
             }
         }
         
@@ -203,7 +290,93 @@ extension ChecklistItem {
     }
 }
 
-// MARK: - ItemManager Class
+// MARK: - Recurrence Helper Extensions
+
+extension RecurrencePattern {
+    func nextOccurrence(after date: Date) -> Date? {
+        let calendar = Calendar.current
+        
+        switch frequency {
+        case .none:
+            return nil
+        case .daily:
+            return calendar.date(byAdding: .day, value: interval, to: date)
+        case .weekly:
+            return calendar.date(byAdding: .weekOfYear, value: interval, to: date)
+        case .monthly:
+            return calendar.date(byAdding: .month, value: interval, to: date)
+        case .yearly:
+            return calendar.date(byAdding: .year, value: interval, to: date)
+        }
+    }
+    
+    func shouldStopRecurring(currentOccurrences: Int, currentDate: Date) -> Bool {
+        // Check max occurrences
+        if let maxOccurrences = maxOccurrences, currentOccurrences >= maxOccurrences {
+            return true
+        }
+        
+        // Check end date
+        if let endDate = endDate, currentDate > endDate {
+            return true
+        }
+        
+        return false
+    }
+}
+
+extension Item {
+    func generateRecurringInstances(upTo endDate: Date) -> [Item] {
+        guard isRecurring else { return [] }
+        
+        var instances: [Item] = []
+        var currentDate = assignedDate
+        var occurrenceCount = 0
+        let calendar = Calendar.current
+        
+        while currentDate <= endDate {
+            // Check if we should stop recurring
+            if recurrencePattern.shouldStopRecurring(currentOccurrences: occurrenceCount, currentDate: currentDate) {
+                break
+            }
+            
+            // Skip the original date (don't create instance for parent)
+            if !calendar.isDate(currentDate, equalTo: assignedDate, toGranularity: .day) {
+                var instance = self
+                instance.id = UUID() // New unique ID for instance
+                instance.assignedDate = calendar.startOfDay(for: currentDate)
+                instance.parentRecurringID = self.id
+                instance.isRecurringParent = false
+                instance.occurrenceDate = currentDate
+                instance.recordID = nil // Will get new CloudKit ID when saved
+                instance.isCompleted = false // Reset completion for new instance
+                instance.lastModified = Date()
+                
+                // Adjust assigned time to the new date if present
+                if let originalTime = assignedTime {
+                    let timeComponents = calendar.dateComponents([.hour, .minute, .second], from: originalTime)
+                    instance.assignedTime = calendar.date(bySettingHour: timeComponents.hour ?? 0,
+                                                        minute: timeComponents.minute ?? 0,
+                                                        second: timeComponents.second ?? 0,
+                                                        of: currentDate)
+                }
+                
+                instances.append(instance)
+            }
+            
+            // Move to next occurrence
+            guard let nextDate = recurrencePattern.nextOccurrence(after: currentDate) else {
+                break
+            }
+            currentDate = nextDate
+            occurrenceCount += 1
+        }
+        
+        return instances
+    }
+}
+
+// MARK: - ItemManager Class (Updated with Recurring Support)
 @MainActor
 class ItemManager: ObservableObject {
     @Published var items: [Item] = []
@@ -217,6 +390,7 @@ class ItemManager: ObservableObject {
     init() {
         setupCloudKitObservers()
         loadSampleItems()
+        generateRecurringInstances()
     }
     
     // Access CloudKit manager - standard singleton pattern
@@ -243,30 +417,42 @@ class ItemManager: ObservableObject {
         // Only load sample items if we have no items yet
         guard items.isEmpty else { return }
         
+        // Create a recurring daily standup
+        var dailyStandup = Item(
+            title: "Daily Standup",
+            description: "Team standup meeting",
+            assignedDate: today,
+            assignedTime: calendar.date(bySettingHour: 9, minute: 0, second: 0, of: today),
+            sortOrder: 0
+        )
+        dailyStandup.recurrencePattern = RecurrencePattern(frequency: .daily, interval: 1)
+        dailyStandup.isRecurringParent = true
+        
+        // Create a weekly team meeting
+        var weeklyMeeting = Item(
+            title: "Weekly Team Meeting",
+            description: "Weekly team sync and planning",
+            assignedDate: today,
+            assignedTime: calendar.date(bySettingHour: 14, minute: 0, second: 0, of: today),
+            sortOrder: 1
+        )
+        weeklyMeeting.recurrencePattern = RecurrencePattern(frequency: .weekly, interval: 1)
+        weeklyMeeting.isRecurringParent = true
+        
         self.items = [
-            Item(
-                title: "Team Meeting",
-                description: "Weekly standup with the product team to discuss project progress and upcoming deadlines.",
-                assignedDate: today,
-                assignedTime: calendar.date(bySettingHour: 10, minute: 0, second: 0, of: today),
-                sortOrder: 0
-            ),
+            dailyStandup,
+            weeklyMeeting,
             Item(
                 title: "Yoga Class",
                 description: "Beginner's yoga session at the local studio",
                 assignedDate: today,
                 assignedTime: calendar.date(bySettingHour: 16, minute: 0, second: 0, of: today),
-                sortOrder: 1
+                sortOrder: 2
             ),
             Item(
                 title: "Groceries",
                 description: "Weekly grocery shopping",
                 assignedDate: tomorrow,
-                sortOrder: 2
-            ),
-            Item(
-                title: "Email and Inbox DMx",
-                assignedDate: today,
                 sortOrder: 3
             ),
             Item(
@@ -289,6 +475,66 @@ class ItemManager: ObservableObject {
         }
     }
     
+    // MARK: - Recurring Task Management
+    
+    private func generateRecurringInstances() {
+        let calendar = Calendar.current
+        let endDate = calendar.date(byAdding: .month, value: 3, to: Date()) ?? Date() // Generate 3 months ahead
+        
+        let recurringTasks = items.filter { $0.isRecurringParent }
+        
+        for recurringTask in recurringTasks {
+            let instances = recurringTask.generateRecurringInstances(upTo: endDate)
+            
+            // Only add instances that don't already exist
+            for instance in instances {
+                let existsAlready = items.contains { existingItem in
+                    existingItem.parentRecurringID == recurringTask.id &&
+                    calendar.isDate(existingItem.assignedDate, equalTo: instance.assignedDate, toGranularity: .day)
+                }
+                
+                if !existsAlready {
+                    items.append(instance)
+                }
+            }
+        }
+        
+        // Sort items by sort order
+        items.sort { $0.sortOrder < $1.sortOrder }
+    }
+    
+    func updateRecurringPattern(_ item: Item, pattern: RecurrencePattern) {
+        if let index = items.firstIndex(where: { $0.id == item.id }) {
+            items[index].recurrencePattern = pattern
+            items[index].isRecurringParent = pattern.isRecurring
+            items[index].lastModified = Date()
+            
+            let updatedItem = items[index]
+            
+            // If this is now a recurring task, generate future instances
+            if pattern.isRecurring {
+                generateRecurringInstances()
+            } else if !pattern.isRecurring {
+                // If recurrence was removed, clean up existing instances
+                items.removeAll { $0.parentRecurringID == item.id }
+            }
+            
+            // Sync to CloudKit
+            Task { [weak self] in
+                guard let self = self else { return }
+                
+                do {
+                    _ = try await self.cloudKitManager.saveItem(updatedItem)
+                } catch {
+                    await MainActor.run {
+                        self.errorMessage = "Failed to sync recurring pattern: \(error.localizedDescription)"
+                        self.showingError = true
+                    }
+                }
+            }
+        }
+    }
+    
     // MARK: - CloudKit Sync Methods
     
     private func syncFromCloudKit() {
@@ -303,6 +549,7 @@ class ItemManager: ObservableObject {
                 let cloudItems = try await self.cloudKitManager.fetchAllItems()
                 await MainActor.run {
                     self.mergeItems(cloudItems)
+                    self.generateRecurringInstances() // Regenerate after sync
                     self.lastSyncDate = Date()
                 }
             } catch {
@@ -343,8 +590,6 @@ class ItemManager: ObservableObject {
     
     // MARK: - Smart Ordering Methods
     
-    // FIXED: Replace the itemsForDate method in ItemManager with this version
-
     func itemsForDate(_ date: Date) -> [Item] {
         let calendar = Calendar.current
         let targetDate = calendar.startOfDay(for: date)
@@ -362,7 +607,7 @@ class ItemManager: ObservableObject {
         print("📋 Has custom order: \(hasAnyCustomOrder)")
         
         if hasAnyCustomOrder {
-            // Use manual ordering (sort by sortOrder) - THIS IS THE KEY FIX
+            // Use manual ordering (sort by sortOrder)
             let sortedItems = itemsForDate.sorted { $0.sortOrder < $1.sortOrder }
             print("📋 Using manual order - sorted by sortOrder")
             for (index, item) in sortedItems.enumerated() {
@@ -391,7 +636,7 @@ class ItemManager: ObservableObject {
         }
     }
     
-    // NEW: Handle manual reordering
+    // Handle manual reordering
     func handleManualReorder(for date: Date, reorderedItems: [Item]) {
         // Update sort orders and mark as manually ordered
         for (newIndex, item) in reorderedItems.enumerated() {
@@ -435,7 +680,7 @@ class ItemManager: ObservableObject {
         }
     }
     
-    // NEW: Reset to chronological order
+    // Reset to chronological order
     func resetToChronologicalOrder(for date: Date) {
         let calendar = Calendar.current
         let targetDate = calendar.startOfDay(for: date)
@@ -476,6 +721,11 @@ class ItemManager: ObservableObject {
         // Add locally first for immediate UI update
         items.append(newItem)
         
+        // If this is a recurring task, generate future instances
+        if newItem.isRecurring {
+            generateRecurringInstances()
+        }
+        
         // Sync to CloudKit in background
         Task { [weak self] in
             guard let self = self else { return }
@@ -498,7 +748,12 @@ class ItemManager: ObservableObject {
     }
     
     func deleteItem(_ item: Item) {
-        // Remove locally first
+        // If deleting a recurring parent, also delete all instances
+        if item.isRecurringParent {
+            items.removeAll { $0.parentRecurringID == item.id }
+        }
+        
+        // Remove the item itself
         items.removeAll { $0.id == item.id }
         reorderItems()
         
@@ -668,7 +923,7 @@ class ItemManager: ObservableObject {
         }
     }
     
-    // MARK: - Reorder Sync Method (UPDATED)
+    // MARK: - Reorder Sync Method
     func syncReorderedItems(_ reorderedItems: [Item]) {
         // This method is now replaced by handleManualReorder
         // Keeping for compatibility, but redirecting to new method
