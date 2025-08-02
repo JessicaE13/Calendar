@@ -2,7 +2,7 @@
 //  ItemListView.swift
 //  Calendar
 //
-//  EXPLICIT DRAG AND DROP IMPLEMENTATION WITH RECURRING TASK SUPPORT
+//  Updated to work better in scrollable content without floating action button
 //
 
 import SwiftUI
@@ -31,99 +31,99 @@ struct ItemListView: View {
     }
     
     var body: some View {
-        ZStack {
-            VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 16) {
+            
+            // Section header with add button
+            HStack {
+                Text("Tasks")
+                    .font(.system(size: 20))
+                    .fontWeight(.semibold)
+                    .foregroundColor(.primary)
                 
-                if displayItems.isEmpty {
-                    
-                    VStack(spacing: 8) {
-                        Image(systemName: "checkmark.square")
-                            .font(.title)
-                            .foregroundColor(.black.opacity(0.6))
-                        
-                        Text("No items for this day")
-                            .font(.system(size: 16))
-                            .foregroundColor(.secondary)
-                        
-                        Text("Tap + to add a item")
+                Spacer()
+                
+                Button(action: {
+                    showingAddItem = true
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus")
                             .font(.system(size: 14))
-                            .foregroundColor(.secondary.opacity(0.8))
+                        Text("Add")
+                            .font(.system(size: 14))
                     }
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 32)
-                    .padding(.horizontal, 20)
-                } else {
-                    
-                    // Custom scrollable list with explicit drag and drop
-                    ScrollView {
-                        LazyVStack(spacing: 0) {
-                            ForEach(displayItems, id: \.id) { item in
-                                DraggableItemRow(
-                                    item: item,
-                                    itemManager: itemManager,
-                                    isBeingDragged: draggedItem?.id == item.id,
-                                    onDragChanged: { isDragging in
-                                        if isDragging {
-                                            draggedItem = item
-                                        } else {
-                                            draggedItem = nil
-                                        }
-                                    },
-                                    onMove: { draggedItem, targetItem in
-                                        moveItem(draggedItem, to: targetItem)
-                                    }
-                                )
-                            }
-                        }
-                        .padding(.horizontal, 20)
-                    }
+                    .foregroundColor(Color("Accent1"))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
                     .background(
-                        // Timeline line
-                        HStack {
-                            Rectangle()
-                                .fill(.gray)
-                                .frame(width: 2)
-                                .padding(.leading, 51)
-                            Spacer()
-                        }
+                        RoundedRectangle(cornerRadius: 8)
+                            .stroke(Color("Accent1"), lineWidth: 1)
+                            .fill(Color("Accent1").opacity(0.1))
                     )
                 }
-                
-                Spacer()
+                .buttonStyle(PlainButtonStyle())
             }
+            .padding(.horizontal, 20)
             
-            // Floating Action Button
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
+            if displayItems.isEmpty {
+                
+                VStack(spacing: 8) {
+                    Image(systemName: "checkmark.square")
+                        .font(.title)
+                        .foregroundColor(.black.opacity(0.6))
                     
-                    Button(action: {
-                        showingAddItem = true
-                    }) {
-                        Image(systemName: "plus")
-                            .font(.title2)
-                            .fontWeight(.semibold)
-                            .foregroundColor(.white)
-                            .frame(width: 56, height: 56)
-                            .background(
-                                Circle()
-                                    .fill(Color("Accent1"))
-                                    .shadow(color: .black.opacity(0.1), radius: 1, x: 0, y: 1)
-                            )
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .scaleEffect(1.0)
-                    .animation(.easeInOut(duration: 0.1), value: showingAddItem)
+                    Text("No tasks for this day")
+                        .font(.system(size: 16))
+                        .foregroundColor(.secondary)
+                    
+                    Text("Tap + Add to create a task")
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary.opacity(0.8))
                 }
-                .padding(.trailing, 20)
-                .padding(.bottom, 20)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 32)
+                .padding(.horizontal, 20)
+            } else {
+                
+                // Custom list with explicit drag and drop
+                VStack(spacing: 0) {
+                    ForEach(displayItems, id: \.id) { item in
+                        DraggableItemRow(
+                            item: item,
+                            itemManager: itemManager,
+                            isBeingDragged: draggedItem?.id == item.id,
+                            onDragChanged: { isDragging in
+                                if isDragging {
+                                    draggedItem = item
+                                } else {
+                                    draggedItem = nil
+                                }
+                            },
+                            onMove: { draggedItem, targetItem in
+                                moveItem(draggedItem, to: targetItem)
+                            }
+                        )
+                    }
+                }
+                .background(
+                    // Timeline line
+                    HStack {
+                        Rectangle()
+                            .fill(.gray)
+                            .frame(width: 2)
+                            .padding(.leading, 51)
+                        Spacer()
+                    }
+                )
+                .padding(.horizontal, 20)
             }
         }
         .onAppear {
             loadDisplayItems()
         }
         .onChange(of: selectedDate) {
+            loadDisplayItems()
+        }
+        .onChange(of: itemManager.items) {
             loadDisplayItems()
         }
         .sheet(isPresented: $showingAddItem) {
@@ -278,8 +278,7 @@ struct DraggableItemRow: View {
 }
 
 //
-//  Updated AddItemView with Category Selection
-//  Calendar
+//  Updated AddItemView with Category Selection (unchanged from before)
 //
 
 import SwiftUI
@@ -326,11 +325,11 @@ struct AddItemView: View {
             VStack(spacing: 24) {
                 // Item Title Section
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Item Title")
+                    Text("Task Title")
                         .font(.system(size: 16))
                         .fontWeight(.medium)
                     
-                    TextField("Enter item description", text: $itemTitle)
+                    TextField("Enter task description", text: $itemTitle)
                         .textFieldStyle(RoundedBorderTextFieldStyle())
                         .font(.system(size: 16))
                 }
@@ -412,7 +411,7 @@ struct AddItemView: View {
                     
                     Spacer()
                     
-                    Button("Add Item") {
+                    Button("Add Task") {
                         var newItem = Item(
                             title: itemTitle,
                             assignedDate: selectedDate,
@@ -445,7 +444,7 @@ struct AddItemView: View {
                 .padding()
             }
             .padding()
-            .navigationTitle("New Item")
+            .navigationTitle("New Task")
             .navigationBarTitleDisplayMode(.inline)
         }
         .presentationDetents([.height(650)])

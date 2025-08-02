@@ -2,7 +2,7 @@
 //  ItemModel.swift
 //  Calendar
 //
-//  Enhanced with category support and recurring task functionality
+//  Enhanced with category support, recurring task functionality, and Equatable conformance
 //
 
 import Foundation
@@ -11,7 +11,7 @@ import Combine
 
 // MARK: - Recurrence Pattern
 
-enum RecurrenceFrequency: String, CaseIterable, Codable {
+enum RecurrenceFrequency: String, CaseIterable, Codable, Equatable {
     case none = "none"
     case daily = "daily"
     case weekly = "weekly"
@@ -29,7 +29,7 @@ enum RecurrenceFrequency: String, CaseIterable, Codable {
     }
 }
 
-struct RecurrencePattern: Codable {
+struct RecurrencePattern: Codable, Equatable {
     var frequency: RecurrenceFrequency = .none
     var interval: Int = 1 // Every X days/weeks/months/years
     var endDate: Date? = nil // When to stop recurring (optional)
@@ -49,7 +49,7 @@ struct RecurrencePattern: Codable {
 
 // MARK: - ChecklistItem Model
 
-struct ChecklistItem: Identifiable, Codable {
+struct ChecklistItem: Identifiable, Codable, Equatable {
     var id = UUID()
     var title: String
     var isCompleted: Bool = false
@@ -62,11 +62,19 @@ struct ChecklistItem: Identifiable, Codable {
         case id, title, isCompleted, sortOrder
         // recordID and parentItemRecordID are not encoded/decoded
     }
+    
+    // Equatable conformance
+    static func == (lhs: ChecklistItem, rhs: ChecklistItem) -> Bool {
+        return lhs.id == rhs.id &&
+               lhs.title == rhs.title &&
+               lhs.isCompleted == rhs.isCompleted &&
+               lhs.sortOrder == rhs.sortOrder
+    }
 }
 
 // MARK: - Item Model (with category and recurring support)
 
-struct Item: Identifiable, Codable {
+struct Item: Identifiable, Codable, Equatable {
     var id = UUID()
     var title: String
     var description: String = ""
@@ -137,6 +145,24 @@ struct Item: Identifiable, Codable {
         case id, title, description, isCompleted, assignedDate, assignedTime, sortOrder, checklist, lastModified, hasCustomOrderForDate
         case categoryID, recurrencePattern, parentRecurringID, isRecurringParent, occurrenceDate
         // recordID is not encoded/decoded
+    }
+    
+    // Equatable conformance
+    static func == (lhs: Item, rhs: Item) -> Bool {
+        return lhs.id == rhs.id &&
+               lhs.title == rhs.title &&
+               lhs.description == rhs.description &&
+               lhs.isCompleted == rhs.isCompleted &&
+               lhs.assignedDate == rhs.assignedDate &&
+               lhs.assignedTime == rhs.assignedTime &&
+               lhs.sortOrder == rhs.sortOrder &&
+               lhs.checklist == rhs.checklist &&
+               lhs.categoryID == rhs.categoryID &&
+               lhs.recurrencePattern == rhs.recurrencePattern &&
+               lhs.parentRecurringID == rhs.parentRecurringID &&
+               lhs.isRecurringParent == rhs.isRecurringParent &&
+               lhs.occurrenceDate == rhs.occurrenceDate &&
+               lhs.hasCustomOrderForDate == rhs.hasCustomOrderForDate
     }
 }
 

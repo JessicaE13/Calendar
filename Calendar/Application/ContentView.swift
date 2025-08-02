@@ -7,6 +7,7 @@ struct ContentView: View {
     @StateObject private var itemManager = ItemManager()
     @StateObject private var cloudKitManager = CloudKitManager.shared
     @StateObject private var categoryManager = CategoryManager.shared
+    @StateObject private var routineManager = RoutineManager.shared
     @State private var showingCloudKitTest = false
     @State private var showingCategoryManagement = false
     
@@ -55,6 +56,7 @@ struct ContentView: View {
                         if cloudKitManager.isAccountAvailable {
                             itemManager.forceSyncWithCloudKit()
                             categoryManager.forceSyncWithCloudKit()
+                            routineManager.forceSyncWithCloudKit()
                         } else {
                             showingCloudKitTest = true
                         }
@@ -86,10 +88,22 @@ struct ContentView: View {
                     
                     Spacer()
                 }
-                .padding()
+                .padding(.horizontal)
                 
-                ItemListView(itemManager: itemManager, selectedDate: selectedDate)
-                    .frame(maxHeight: .infinity)
+                // Main content area with scroll
+                ScrollView {
+                    VStack(spacing: 16) {
+                        // Routine Cards - only show for today or future dates
+                        if !selectedDate.isInPast {
+                            RoutineCardsView(selectedDate: selectedDate)
+                                .padding(.horizontal, 20)
+                        }
+                        
+                        // Items List
+                        ItemListView(itemManager: itemManager, selectedDate: selectedDate)
+                    }
+                }
+                .frame(maxHeight: .infinity)
             }
         }
         .sheet(isPresented: $showingCloudKitTest) {
@@ -115,8 +129,9 @@ struct ContentView: View {
         .onAppear {
             // Check CloudKit status when app appears
             cloudKitManager.checkAccountStatus()
-            // Sync categories
+            // Sync all managers
             categoryManager.forceSyncWithCloudKit()
+            routineManager.forceSyncWithCloudKit()
         }
     }
     
@@ -195,6 +210,16 @@ struct ContentView: View {
         let formatter = DateFormatter()
         formatter.dateStyle = .full
         return formatter.string(from: selectedDate)
+    }
+}
+
+// MARK: - Date Extension for Past Check
+extension Date {
+    var isInPast: Bool {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let thisDate = calendar.startOfDay(for: self)
+        return thisDate < today
     }
 }
 
