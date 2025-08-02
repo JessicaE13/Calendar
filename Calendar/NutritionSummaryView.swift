@@ -274,7 +274,7 @@ struct RecipeNutritionView: View {
                 return EditableIngredient(ingredient: recipe.ingredients[index], index: index)
             },
             set: { _ in editingIngredientIndex = nil }
-        )) { editableIngredient in
+        )) { (editableIngredient: EditableIngredient) in
             IngredientEditView(
                 ingredient: editableIngredient.ingredient,
                 onSave: { updatedIngredient in
@@ -286,7 +286,7 @@ struct RecipeNutritionView: View {
                 }
             )
         }
-        .onChange(of: selectedIngredient) { _, newValue in
+        .onChange(of: selectedIngredient) { oldValue, newValue in
             if let ingredient = newValue {
                 recipe.ingredients.append(ingredient)
                 selectedIngredient = nil
@@ -433,7 +433,7 @@ struct IngredientEditView: View {
             NutritionSearchView(
                 selectedIngredient: .init(
                     get: { nil },
-                    set: { newIngredient in
+                    set: { newIngredient, _ in
                         if let newIngredient = newIngredient {
                             ingredient.nutritionData = newIngredient.nutritionData
                             ingredient.fdcId = newIngredient.fdcId
