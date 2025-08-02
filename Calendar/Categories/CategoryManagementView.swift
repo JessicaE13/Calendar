@@ -156,7 +156,7 @@ struct AddCategoryView: View {
     @Binding var isPresented: Bool
     
     @State private var categoryName = ""
-    @State private var selectedColor: CategoryColor = .blue
+    @State private var selectedColor: CategoryColor = .accent1
     
     var body: some View {
         NavigationView {

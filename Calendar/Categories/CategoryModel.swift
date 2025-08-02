@@ -34,37 +34,47 @@ struct Category: Identifiable, Codable, Hashable {
 
 // MARK: - Category Colors
 enum CategoryColor: String, CaseIterable, Codable {
-    case red = "red"
-    case orange = "orange"
-    case yellow = "yellow"
-    case green = "green"
-    case blue = "blue"
-    case purple = "purple"
-    case pink = "pink"
-    case indigo = "indigo"
-    case teal = "teal"
-    case gray = "gray"
+    case accent1 = "accent1"
+    case accent2 = "accent2"
+    case accent3 = "accent3"
+    case accent4 = "accent4"
+    case accent5 = "accent5"
+    case accent6 = "accent6"
+    case accent7 = "accent7"
+    case accent8 = "accent8"
+    case accent9 = "accent9"
+    case accent10 = "accent10"
     
     var swiftUIColor: Color {
         switch self {
-        case .red: return .red
-        case .orange: return .orange
-        case .yellow: return .yellow
-        case .green: return .green
-        case .blue: return .blue
-        case .purple: return .purple
-        case .pink: return .pink
-        case .indigo: return .indigo
-        case .teal: return .teal
-        case .gray: return .gray
+        case .accent1: return .red
+        case .accent2: return .orange
+        case .accent3: return .yellow
+        case .accent4: return .green
+        case .accent5: return .blue
+        case .accent6: return .purple
+        case .accent7: return .pink
+        case .accent8: return .indigo
+        case .accent9: return .teal
+        case .accent10: return .gray
         }
     }
     
     var displayName: String {
-        return rawValue.capitalized
+        switch self {
+        case .accent1: return "Accent 1"
+        case .accent2: return "Accent 2"
+        case .accent3: return "Accent 3"
+        case .accent4: return "Accent 4"
+        case .accent5: return "Accent 5"
+        case .accent6: return "Accent 6"
+        case .accent7: return "Accent 7"
+        case .accent8: return "Accent 8"
+        case .accent9: return "Accent 9"
+        case .accent10: return "Accent 10"
+        }
     }
 }
-
 // MARK: - CloudKit Extensions for Category
 extension Category {
     func toCKRecord() -> CKRecord {
@@ -125,11 +135,11 @@ class CategoryManager: ObservableObject {
         guard categories.isEmpty else { return }
         
         categories = [
-            Category(name: "Work", color: .blue, sortOrder: 0),
-            Category(name: "Personal", color: .green, sortOrder: 1),
-            Category(name: "Health", color: .red, sortOrder: 2),
-            Category(name: "Family", color: .orange, sortOrder: 3),
-            Category(name: "Learning", color: .purple, sortOrder: 4)
+            Category(name: "Work", color: .accent1, sortOrder: 0),
+            Category(name: "Personal", color: .accent2, sortOrder: 1),
+            Category(name: "Health", color: .accent3, sortOrder: 2),
+            Category(name: "Family", color: .accent4, sortOrder: 3),
+            Category(name: "Learning", color: .accent5, sortOrder: 4)
         ]
     }
     
