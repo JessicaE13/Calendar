@@ -25,12 +25,15 @@ struct ContentView: View {
             
             VStack(spacing: 0) {
                 
+                
                 VStack(spacing: 12) {
                     HStack {
                         Text(weekTitle)
                             .font(.system(.title2, design: .default))
                             .fontWeight(.semibold)
                             .foregroundColor(.primary)
+                        
+                        Spacer()
                         
                         HStack(spacing: 12) {
                             Button(action: {
@@ -50,14 +53,15 @@ struct ContentView: View {
                             }
                         }
                         .padding(.leading, 8)
+                        .padding(.trailing, 8)
                         
-                        Spacer()
+                       // Spacer()
                         
                         Button("Today") {
                             selectedDate = Date()
                         }
                         .font(.system(size: 12))
-                     //   .fontWeight(.medium)
+                        .fontWeight(.medium)
                         .foregroundColor(Color("Accent1"))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
@@ -73,6 +77,7 @@ struct ContentView: View {
                         .padding(.horizontal, 20)
                 }
                 .padding(.bottom, 12)
+                .padding(.top, 12)
                 .background(Color("Background").opacity(0.95))
                 
                 // Main Content Area
