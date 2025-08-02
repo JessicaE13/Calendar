@@ -142,6 +142,41 @@ class NutritionService: ObservableObject {
         }
     }
     
+    // MARK: - Parse Amount to Grams (Public)
+    
+    func parseAmountToGrams(_ amountString: String, for ingredient: String) -> Double {
+        let amount = amountString.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Extract number
+        let components = amount.components(separatedBy: .whitespaces)
+        guard let firstComponent = components.first,
+              let number = Double(firstComponent.filter { $0.isNumber || $0 == "." }) else {
+            return 100.0 // Default to 100g if can't parse
+        }
+        
+        // Common conversions to grams (approximate)
+        if amount.contains("cup") || amount.contains("c") {
+            return number * 240 // 1 cup ≈ 240ml ≈ 240g for liquids
+        } else if amount.contains("tbsp") || amount.contains("tablespoon") {
+            return number * 15 // 1 tbsp ≈ 15g
+        } else if amount.contains("tsp") || amount.contains("teaspoon") {
+            return number * 5 // 1 tsp ≈ 5g
+        } else if amount.contains("oz") {
+            return number * 28.35 // 1 oz = 28.35g
+        } else if amount.contains("lb") || amount.contains("pound") {
+            return number * 453.592 // 1 lb = 453.592g
+        } else if amount.contains("kg") {
+            return number * 1000 // 1 kg = 1000g
+        } else if amount.contains("g") {
+            return number // Already in grams
+        } else if amount.contains("ml") || amount.contains("l") {
+            return number // Approximate ml as grams for liquids
+        } else {
+            // No unit specified, assume it's a reasonable portion
+            return number * 100 // Multiply by 100g as default portion
+        }
+    }
+    
     // MARK: - Parse Nutrition Data
     
     private func parseNutritionData(from nutrients: [USDANutrient]) -> NutritionData {

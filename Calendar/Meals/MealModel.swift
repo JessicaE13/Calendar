@@ -533,77 +533,79 @@ class MealManager: ObservableObject {
         guard recipes.isEmpty else { return }
         
         // Sample recipes with enhanced nutrition-ready ingredients
-        let categoryManager = CategoryManager.shared
-        let foodCategory = categoryManager.categories.first { $0.name == "Food" } ??
-                          categoryManager.categories.first { $0.name == "Personal" }
-        
-        var pancakeRecipe = Recipe(
-            name: "Fluffy Pancakes",
-            description: "Light and fluffy breakfast pancakes",
-            prepTime: 10,
-            cookTime: 15,
-            servings: 4
-        )
-        pancakeRecipe.categoryID = foodCategory?.id
-        pancakeRecipe.ingredients = [
-            Ingredient(name: "All-purpose flour", amount: "2 cups", category: "Baking"),
-            Ingredient(name: "Sugar", amount: "2 tbsp", category: "Baking"),
-            Ingredient(name: "Baking powder", amount: "2 tsp", category: "Baking"),
-            Ingredient(name: "Salt", amount: "1/2 tsp", category: "Baking"),
-            Ingredient(name: "Milk", amount: "1 3/4 cups", category: "Dairy"),
-            Ingredient(name: "Eggs", amount: "2 large", category: "Dairy"),
-            Ingredient(name: "Butter", amount: "1/4 cup melted", category: "Dairy"),
-            Ingredient(name: "Vanilla extract", amount: "1 tsp", category: "Baking")
-        ]
-        pancakeRecipe.instructions = [
-            "Mix dry ingredients in a large bowl",
-            "Whisk wet ingredients in another bowl",
-            "Combine wet and dry ingredients until just mixed",
-            "Heat griddle or pan over medium heat",
-            "Pour 1/4 cup batter for each pancake",
-            "Cook until bubbles form, then flip",
-            "Cook until golden brown on both sides"
-        ]
-        pancakeRecipe.tags = ["breakfast", "family-friendly", "vegetarian"]
-        
-        var saladRecipe = Recipe(
-            name: "Mediterranean Salad",
-            description: "Fresh and healthy Mediterranean-style salad",
-            prepTime: 15,
-            cookTime: 0,
-            servings: 2
-        )
-        saladRecipe.categoryID = foodCategory?.id
-        saladRecipe.ingredients = [
-            Ingredient(name: "Mixed greens", amount: "4 cups", category: "Vegetables"),
-            Ingredient(name: "Cherry tomatoes", amount: "1 cup halved", category: "Vegetables"),
-            Ingredient(name: "Cucumber", amount: "1 medium diced", category: "Vegetables"),
-            Ingredient(name: "Red onion", amount: "1/4 cup sliced", category: "Vegetables"),
-            Ingredient(name: "Feta cheese", amount: "1/2 cup crumbled", category: "Dairy"),
-            Ingredient(name: "Kalamata olives", amount: "1/4 cup", category: "Vegetables"),
-            Ingredient(name: "Olive oil", amount: "3 tbsp", category: "Pantry"),
-            Ingredient(name: "Lemon juice", amount: "2 tbsp", category: "Pantry"),
-            Ingredient(name: "Dried oregano", amount: "1 tsp", category: "Spices")
-        ]
-        saladRecipe.instructions = [
-            "Wash and prepare all vegetables",
-            "Combine greens, tomatoes, cucumber, and onion in a large bowl",
-            "Add feta cheese and olives",
-            "Whisk together olive oil, lemon juice, and oregano",
-            "Drizzle dressing over salad and toss gently",
-            "Serve immediately"
-        ]
-        saladRecipe.tags = ["healthy", "vegetarian", "quick", "lunch"]
-        
-        recipes = [pancakeRecipe, saladRecipe]
-        
-        // Sample planned meals for today
-        let today = Date()
-        plannedMeals = [
-            PlannedMeal(date: today, mealType: .breakfast, recipeID: pancakeRecipe.id),
-            PlannedMeal(date: today, mealType: .lunch, recipeID: saladRecipe.id),
-            PlannedMeal(date: today, mealType: .dinner, customMealName: "Grilled Chicken & Vegetables")
-        ]
+        Task { @MainActor in
+            let categoryManager = CategoryManager.shared
+            let foodCategory = categoryManager.categories.first { $0.name == "Food" } ??
+                              categoryManager.categories.first { $0.name == "Personal" }
+            
+            var pancakeRecipe = Recipe(
+                name: "Fluffy Pancakes",
+                description: "Light and fluffy breakfast pancakes",
+                prepTime: 10,
+                cookTime: 15,
+                servings: 4
+            )
+            pancakeRecipe.categoryID = foodCategory?.id
+            pancakeRecipe.ingredients = [
+                Ingredient(name: "All-purpose flour", amount: "2 cups", category: "Baking"),
+                Ingredient(name: "Sugar", amount: "2 tbsp", category: "Baking"),
+                Ingredient(name: "Baking powder", amount: "2 tsp", category: "Baking"),
+                Ingredient(name: "Salt", amount: "1/2 tsp", category: "Baking"),
+                Ingredient(name: "Milk", amount: "1 3/4 cups", category: "Dairy"),
+                Ingredient(name: "Eggs", amount: "2 large", category: "Dairy"),
+                Ingredient(name: "Butter", amount: "1/4 cup melted", category: "Dairy"),
+                Ingredient(name: "Vanilla extract", amount: "1 tsp", category: "Baking")
+            ]
+            pancakeRecipe.instructions = [
+                "Mix dry ingredients in a large bowl",
+                "Whisk wet ingredients in another bowl",
+                "Combine wet and dry ingredients until just mixed",
+                "Heat griddle or pan over medium heat",
+                "Pour 1/4 cup batter for each pancake",
+                "Cook until bubbles form, then flip",
+                "Cook until golden brown on both sides"
+            ]
+            pancakeRecipe.tags = ["breakfast", "family-friendly", "vegetarian"]
+            
+            var saladRecipe = Recipe(
+                name: "Mediterranean Salad",
+                description: "Fresh and healthy Mediterranean-style salad",
+                prepTime: 15,
+                cookTime: 0,
+                servings: 2
+            )
+            saladRecipe.categoryID = foodCategory?.id
+            saladRecipe.ingredients = [
+                Ingredient(name: "Mixed greens", amount: "4 cups", category: "Vegetables"),
+                Ingredient(name: "Cherry tomatoes", amount: "1 cup halved", category: "Vegetables"),
+                Ingredient(name: "Cucumber", amount: "1 medium diced", category: "Vegetables"),
+                Ingredient(name: "Red onion", amount: "1/4 cup sliced", category: "Vegetables"),
+                Ingredient(name: "Feta cheese", amount: "1/2 cup crumbled", category: "Dairy"),
+                Ingredient(name: "Kalamata olives", amount: "1/4 cup", category: "Vegetables"),
+                Ingredient(name: "Olive oil", amount: "3 tbsp", category: "Pantry"),
+                Ingredient(name: "Lemon juice", amount: "2 tbsp", category: "Pantry"),
+                Ingredient(name: "Dried oregano", amount: "1 tsp", category: "Spices")
+            ]
+            saladRecipe.instructions = [
+                "Wash and prepare all vegetables",
+                "Combine greens, tomatoes, cucumber, and onion in a large bowl",
+                "Add feta cheese and olives",
+                "Whisk together olive oil, lemon juice, and oregano",
+                "Drizzle dressing over salad and toss gently",
+                "Serve immediately"
+            ]
+            saladRecipe.tags = ["healthy", "vegetarian", "quick", "lunch"]
+            
+            self.recipes = [pancakeRecipe, saladRecipe]
+            
+            // Sample planned meals for today
+            let today = Date()
+            self.plannedMeals = [
+                PlannedMeal(date: today, mealType: .breakfast, recipeID: pancakeRecipe.id),
+                PlannedMeal(date: today, mealType: .lunch, recipeID: saladRecipe.id),
+                PlannedMeal(date: today, mealType: .dinner, customMealName: "Grilled Chicken & Vegetables")
+            ]
+        }
     }
     
     // MARK: - Recipe Management
@@ -865,9 +867,10 @@ class MealManager: ObservableObject {
                     for ingredient in recipe.ingredients {
                         let key = ingredient.name.lowercased()
                         
-                        if let existingItem = ingredientsToAdd[key] {
+                        if var existingItem = ingredientsToAdd[key] {
                             // Combine amounts if they're the same unit
                             existingItem.amount += ", \(ingredient.amount)"
+                            ingredientsToAdd[key] = existingItem
                         } else {
                             let shoppingItem = ShoppingListItem(
                                 name: ingredient.name,
@@ -893,6 +896,7 @@ class MealManager: ObservableObject {
     
     // MARK: - Helper Methods
     
+    @MainActor
     func mealsForDate(_ date: Date) -> [PlannedMeal] {
         let calendar = Calendar.current
         let targetDate = calendar.startOfDay(for: date)
@@ -902,6 +906,7 @@ class MealManager: ObservableObject {
         }.sorted { $0.mealType.sortOrder < $1.mealType.sortOrder }
     }
     
+    @MainActor
     func mealForDate(_ date: Date, type: MealType) -> PlannedMeal? {
         let calendar = Calendar.current
         let targetDate = calendar.startOfDay(for: date)

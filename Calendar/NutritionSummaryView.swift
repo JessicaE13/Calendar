@@ -273,7 +273,7 @@ struct RecipeNutritionView: View {
                 guard let index = editingIngredientIndex else { return nil }
                 return EditableIngredient(ingredient: recipe.ingredients[index], index: index)
             },
-            set: { _,_  in editingIngredientIndex = nil }
+            set: { _ in editingIngredientIndex = nil }
         )) { editableIngredient in
             IngredientEditView(
                 ingredient: editableIngredient.ingredient,
@@ -286,8 +286,8 @@ struct RecipeNutritionView: View {
                 }
             )
         }
-        .onChange(of: selectedIngredient) {
-            if let ingredient = selectedIngredient {
+        .onChange(of: selectedIngredient) { _, newValue in
+            if let ingredient = newValue {
                 recipe.ingredients.append(ingredient)
                 selectedIngredient = nil
             }
@@ -392,7 +392,7 @@ struct IngredientEditView: View {
                     Toggle("Optional ingredient", isOn: $ingredient.isOptional)
                 }
                 
-                if $ingredient.nutritionData != NutritionData.empty {
+                if ingredient.nutritionData != NutritionData.empty {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Nutrition Data")
                             .font(.headline)
