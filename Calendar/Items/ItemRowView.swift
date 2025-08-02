@@ -3,7 +3,7 @@
 //  Calendar
 //
 //  Complete file with Rich Text Editor integration and recurring task support
-//  Updated with inline editing, edit mode functionality, and recurring indicators
+//  Updated with inline editing, edit mode functionality, and consistent recurring indicators
 //
 
 import SwiftUI
@@ -34,19 +34,8 @@ struct ItemRowView: View {
         return (timeString, period)
     }
     
-    private var recurringIndicator: String {
-        if item.isRecurringParent {
-            switch item.recurrencePattern.frequency {
-            case .daily: return "🔄"
-            case .weekly: return "📅"
-            case .monthly: return "🗓️"
-            case .yearly: return "🎂"
-            case .none: return ""
-            }
-        } else if item.isRecurringInstance {
-            return "🔗" // Link icon for recurring instances
-        }
-        return ""
+    private var showsRecurringIndicator: Bool {
+        return item.isRecurringParent || item.isRecurringInstance
     }
     
     var body: some View {
@@ -80,9 +69,9 @@ struct ItemRowView: View {
                                 .font(.system(size: 16))
                             
                             // Recurring indicator
-                            if !recurringIndicator.isEmpty {
-                                Text(" \(recurringIndicator)")
-                                    .font(.system(size: 12))
+                            if showsRecurringIndicator {
+                                Image(systemName: "repeat")
+                                    .font(.system(size: 11))
                                     .foregroundColor(.secondary)
                             }
                         }
@@ -106,9 +95,9 @@ struct ItemRowView: View {
                                 .multilineTextAlignment(.leading)
                             
                             // Recurring indicator
-                            if !recurringIndicator.isEmpty {
-                                Text(recurringIndicator)
-                                    .font(.system(size: 12))
+                            if showsRecurringIndicator {
+                                Image(systemName: "repeat")
+                                    .font(.system(size: 11))
                                     .foregroundColor(.secondary)
                             }
                         }
@@ -138,7 +127,13 @@ struct ItemDetailsView: View {
     @ObservedObject var itemManager: ItemManager
     @Binding var isPresented: Bool
     
-    @State private var isEditMode = false
+    // Individual field editing states
+    @State private var isEditingTitle = false
+    @State private var isEditingDescription = false
+    @State private var isEditingDate = false
+    @State private var isEditingTime = false
+    @State private var isEditingRecurrence = false
+    
     @State private var editedTitle = ""
     @State private var editedDescriptionLines: [RichTextLine] = []
     @State private var editedDate = Date()
@@ -155,7 +150,7 @@ struct ItemDetailsView: View {
     private var formattedDate: String {
         let formatter = DateFormatter()
         let calendar = Calendar.current
-        let dateToFormat = isEditMode ? editedDate : item.assignedDate
+        let dateToFormat = isEditingDate ? editedDate : item.assignedDate
         
         if calendar.isDateInToday(dateToFormat) {
             return "Today"
@@ -170,7 +165,7 @@ struct ItemDetailsView: View {
     }
     
     private var formattedTime: String {
-        if isEditMode {
+        if isEditingTime {
             if hasTime {
                 let formatter = DateFormatter()
                 formatter.timeStyle = .short
@@ -187,7 +182,7 @@ struct ItemDetailsView: View {
     }
     
     private var recurrenceDescription: String {
-        let pattern = isEditMode ? editedRecurrencePattern : item.recurrencePattern
+        let pattern = isEditingRecurrence ? editedRecurrencePattern : item.recurrencePattern
         
         if !pattern.isRecurring {
             return "Never"
@@ -243,21 +238,34 @@ struct ItemDetailsView: View {
                                 .textCase(.uppercase)
                                 .tracking(1)
                             
-                            if isEditMode {
-                                TextField("Item name", text: $editedTitle)
-                                    .font(.system(size: 20))
-                                    .fontWeight(.medium)
-                                    .textFieldStyle(RoundedBorderTextFieldStyle())
-                            } else {
-                                Text(item.title)
-                                    .font(.system(size: 20))
-                                    .fontWeight(.medium)
-                                    .multilineTextAlignment(.leading)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .contentShape(Rectangle())
-                                    .onTapGesture {
-                                        enterEditMode()
+                            if isEditingTitle {
+                                HStack {
+                                    TextField("Item name", text: $editedTitle)
+                                        .font(.system(size: 20))
+                                        .fontWeight(.medium)
+                                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                                    
+                                    Button("Save") {
+                                        saveTitle()
                                     }
+                                    .foregroundColor(.green)
+                                    .fontWeight(.semibold)
+                                    
+                                    Button("Cancel") {
+                                        cancelTitleEdit()
+                                    }
+                                    .foregroundColor(.secondary)
+                                }
+                            } else {
+                                Button(action: startEditingTitle) {
+                                    Text(item.title)
+                                        .font(.system(size: 20))
+                                        .fontWeight(.medium)
+                                        .multilineTextAlignment(.leading)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .contentShape(Rectangle())
+                                }
+                                .buttonStyle(PlainButtonStyle())
                             }
                         }
                         
@@ -271,12 +279,29 @@ struct ItemDetailsView: View {
                                 .textCase(.uppercase)
                                 .tracking(1)
                             
-                            if isEditMode {
-                                RichTextEditor(lines: $editedDescriptionLines)
+                            if isEditingDescription {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    RichTextEditor(lines: $editedDescriptionLines)
+                                    
+                                    HStack {
+                                        Button("Save") {
+                                            saveDescription()
+                                        }
+                                        .foregroundColor(.green)
+                                        .fontWeight(.semibold)
+                                        
+                                        Button("Cancel") {
+                                            cancelDescriptionEdit()
+                                        }
+                                        .foregroundColor(.secondary)
+                                        
+                                        Spacer()
+                                    }
+                                }
                             } else {
                                 // Read-only rich text display
                                 if editedDescriptionLines.isEmpty {
-                                    Button(action: { enterEditMode() }) {
+                                    Button(action: startEditingDescription) {
                                         VStack(alignment: .leading, spacing: 12) {
                                             Text("Add notes, meeting links, or create checklists...")
                                                 .font(.system(size: 16))
@@ -290,7 +315,7 @@ struct ItemDetailsView: View {
                                     }
                                     .buttonStyle(PlainButtonStyle())
                                 } else {
-                                    Button(action: { enterEditMode() }) {
+                                    Button(action: startEditingDescription) {
                                         VStack(alignment: .leading, spacing: 8) {
                                             ForEach(editedDescriptionLines) { line in
                                                 ReadOnlyRichTextLineView(line: line)
@@ -317,73 +342,29 @@ struct ItemDetailsView: View {
                                     .textCase(.uppercase)
                                     .tracking(1)
                                 
-                                if isEditMode {
-                                    VStack(spacing: 0) {
-                                        Button("Add Subtask") {
-                                            showingAddChecklistItem = true
-                                        }
-                                        .frame(maxWidth: .infinity)
-                                        .padding(.vertical, 12)
-                                        .background(Color.black)
-                                        .foregroundColor(.white)
-                                        .font(.system(size: 16, weight: .medium))
-                                        
-                                        VStack(alignment: .leading, spacing: 12) {
-                                            ForEach(editedChecklist.sorted { $0.sortOrder < $1.sortOrder }) { checklistItem in
-                                                HStack(spacing: 8) {
-                                                    Button(action: {
-                                                        toggleEditedChecklistItem(checklistItem)
-                                                    }) {
-                                                        Image(systemName: checklistItem.isCompleted ? "checkmark.square.fill" : "square")
-                                                            .foregroundColor(checklistItem.isCompleted ? .green : .gray)
-                                                    }
-                                                    
-                                                    Text(checklistItem.title)
-                                                        .strikethrough(checklistItem.isCompleted)
-                                                        .foregroundColor(checklistItem.isCompleted ? .secondary : .primary)
-                                                    
-                                                    Spacer()
-                                                    
-                                                    Button(action: {
-                                                        deleteEditedChecklistItem(checklistItem)
-                                                    }) {
-                                                        Image(systemName: "xmark.circle.fill")
-                                                            .foregroundColor(.red.opacity(0.6))
-                                                    }
-                                                }
+                                // Always show checklist in read-only mode for simplicity
+                                VStack(alignment: .leading, spacing: 12) {
+                                    ForEach(item.checklist.sorted { $0.sortOrder < $1.sortOrder }) { checklistItem in
+                                        HStack(spacing: 8) {
+                                            Button(action: {
+                                                itemManager.toggleChecklistItemCompletion(item, checklistItem: checklistItem)
+                                            }) {
+                                                Image(systemName: checklistItem.isCompleted ? "checkmark.square.fill" : "square")
+                                                    .foregroundColor(checklistItem.isCompleted ? .green : .gray)
                                             }
+                                            .buttonStyle(PlainButtonStyle())
+                                            
+                                            Text(checklistItem.title)
+                                                .strikethrough(checklistItem.isCompleted)
+                                                .foregroundColor(checklistItem.isCompleted ? .secondary : .primary)
+                                            
+                                            Spacer()
                                         }
-                                        .padding(16)
-                                        .background(Color.white.opacity(0.8))
                                     }
-                                    .cornerRadius(12)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                                    )
-                                } else {
-                                    Button(action: { enterEditMode() }) {
-                                        VStack(alignment: .leading, spacing: 12) {
-                                            ForEach(item.checklist.sorted { $0.sortOrder < $1.sortOrder }) { checklistItem in
-                                                HStack(spacing: 8) {
-                                                    Image(systemName: checklistItem.isCompleted ? "checkmark.square.fill" : "square")
-                                                        .foregroundColor(checklistItem.isCompleted ? .green : .gray)
-                                                    
-                                                    Text(checklistItem.title)
-                                                        .strikethrough(checklistItem.isCompleted)
-                                                        .foregroundColor(checklistItem.isCompleted ? .secondary : .primary)
-                                                    
-                                                    Spacer()
-                                                }
-                                            }
-                                        }
-                                        .padding(16)
-                                        .background(Color.white.opacity(0.5))
-                                        .cornerRadius(12)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                    }
-                                    .buttonStyle(PlainButtonStyle())
                                 }
+                                .padding(16)
+                                .background(Color.white.opacity(0.5))
+                                .cornerRadius(12)
                                 
                                 Divider()
                             }
@@ -401,17 +382,30 @@ struct ItemDetailsView: View {
                                 Image(systemName: "calendar")
                                     .foregroundColor(.secondary)
                                 
-                                if isEditMode {
-                                    DatePicker("Date", selection: $editedDate, displayedComponents: .date)
-                                        .labelsHidden()
-                                        .font(.system(size: 18))
-                                } else {
-                                    Text(formattedDate)
-                                        .font(.system(size: 18))
-                                        .contentShape(Rectangle())
-                                        .onTapGesture {
-                                            enterEditMode()
+                                if isEditingDate {
+                                    HStack {
+                                        DatePicker("Date", selection: $editedDate, displayedComponents: .date)
+                                            .labelsHidden()
+                                            .font(.system(size: 18))
+                                        
+                                        Button("Save") {
+                                            saveDate()
                                         }
+                                        .foregroundColor(.green)
+                                        .fontWeight(.semibold)
+                                        
+                                        Button("Cancel") {
+                                            cancelDateEdit()
+                                        }
+                                        .foregroundColor(.secondary)
+                                    }
+                                } else {
+                                    Button(action: startEditingDate) {
+                                        Text(formattedDate)
+                                            .font(.system(size: 18))
+                                            .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
                                 }
                                 
                                 Spacer()
@@ -429,31 +423,48 @@ struct ItemDetailsView: View {
                                 .tracking(1)
                             
                             VStack(alignment: .leading, spacing: 8) {
-                                if isEditMode {
-                                    Toggle("Assign Time", isOn: $hasTime)
-                                        .font(.system(size: 16))
-                                        .fontWeight(.medium)
-                                    
-                                    if hasTime {
-                                        DatePicker("Time", selection: $editedTime, displayedComponents: .hourAndMinute)
-                                            .labelsHidden()
-                                            .font(.system(size: 18))
+                                if isEditingTime {
+                                    VStack(alignment: .leading, spacing: 12) {
+                                        Toggle("Assign Time", isOn: $hasTime)
+                                            .font(.system(size: 16))
+                                            .fontWeight(.medium)
+                                        
+                                        if hasTime {
+                                            DatePicker("Time", selection: $editedTime, displayedComponents: .hourAndMinute)
+                                                .labelsHidden()
+                                                .font(.system(size: 18))
+                                        }
+                                        
+                                        HStack {
+                                            Button("Save") {
+                                                saveTime()
+                                            }
+                                            .foregroundColor(.green)
+                                            .fontWeight(.semibold)
+                                            
+                                            Button("Cancel") {
+                                                cancelTimeEdit()
+                                            }
+                                            .foregroundColor(.secondary)
+                                            
+                                            Spacer()
+                                        }
                                     }
                                 } else {
-                                    HStack {
-                                        Image(systemName: item.assignedTime != nil ? "clock" : "clock.badge.xmark")
-                                            .foregroundColor(.secondary)
-                                        
-                                        Text(formattedTime)
-                                            .font(.system(size: 18))
-                                            .foregroundColor(item.assignedTime != nil ? .primary : .secondary)
-                                            .contentShape(Rectangle())
-                                            .onTapGesture {
-                                                enterEditMode()
-                                            }
-                                        
-                                        Spacer()
+                                    Button(action: startEditingTime) {
+                                        HStack {
+                                            Image(systemName: item.assignedTime != nil ? "clock" : "clock.badge.xmark")
+                                                .foregroundColor(.secondary)
+                                            
+                                            Text(formattedTime)
+                                                .font(.system(size: 18))
+                                                .foregroundColor(item.assignedTime != nil ? .primary : .secondary)
+                                                .contentShape(Rectangle())
+                                            
+                                            Spacer()
+                                        }
                                     }
+                                    .buttonStyle(PlainButtonStyle())
                                 }
                             }
                         }
@@ -461,7 +472,7 @@ struct ItemDetailsView: View {
                         Divider()
                         
                         // Recurrence Section (only show for non-instances or when editing)
-                        if !item.isRecurringInstance || isEditMode {
+                        if !item.isRecurringInstance {
                             VStack(alignment: .leading, spacing: 12) {
                                 Text("Repeat")
                                     .font(.system(size: 14))
@@ -469,40 +480,57 @@ struct ItemDetailsView: View {
                                     .textCase(.uppercase)
                                     .tracking(1)
                                 
-                                if isEditMode {
-                                    Button(action: {
-                                        showingRecurrenceOptions = true
-                                    }) {
+                                if isEditingRecurrence {
+                                    VStack(alignment: .leading, spacing: 12) {
+                                        Button(action: {
+                                            showingRecurrenceOptions = true
+                                        }) {
+                                            HStack {
+                                                Image(systemName: "arrow.triangle.2.circlepath")
+                                                    .foregroundColor(.secondary)
+                                                
+                                                Text(recurrenceDescription)
+                                                    .font(.system(size: 18))
+                                                    .foregroundColor(.primary)
+                                                
+                                                Spacer()
+                                                
+                                                Image(systemName: "chevron.right")
+                                                    .foregroundColor(.secondary)
+                                                    .font(.system(size: 14))
+                                            }
+                                        }
+                                        .buttonStyle(PlainButtonStyle())
+                                        
+                                        HStack {
+                                            Button("Save") {
+                                                saveRecurrence()
+                                            }
+                                            .foregroundColor(.green)
+                                            .fontWeight(.semibold)
+                                            
+                                            Button("Cancel") {
+                                                cancelRecurrenceEdit()
+                                            }
+                                            .foregroundColor(.secondary)
+                                            
+                                            Spacer()
+                                        }
+                                    }
+                                } else {
+                                    Button(action: startEditingRecurrence) {
                                         HStack {
                                             Image(systemName: "arrow.triangle.2.circlepath")
                                                 .foregroundColor(.secondary)
                                             
                                             Text(recurrenceDescription)
                                                 .font(.system(size: 18))
-                                                .foregroundColor(.primary)
+                                                .contentShape(Rectangle())
                                             
                                             Spacer()
-                                            
-                                            Image(systemName: "chevron.right")
-                                                .foregroundColor(.secondary)
-                                                .font(.system(size: 14))
                                         }
                                     }
                                     .buttonStyle(PlainButtonStyle())
-                                } else {
-                                    HStack {
-                                        Image(systemName: "arrow.triangle.2.circlepath")
-                                            .foregroundColor(.secondary)
-                                        
-                                        Text(recurrenceDescription)
-                                            .font(.system(size: 18))
-                                            .contentShape(Rectangle())
-                                            .onTapGesture {
-                                                enterEditMode()
-                                            }
-                                        
-                                        Spacer()
-                                    }
                                 }
                             }
                             
@@ -510,33 +538,6 @@ struct ItemDetailsView: View {
                         }
                         
                         Spacer(minLength: 40)
-                        
-                        // Edit/Save button at bottom
-                        Button(action: {
-                            if isEditMode {
-                                saveChanges()
-                            } else {
-                                enterEditMode()
-                            }
-                        }) {
-                            HStack {
-                                Image(systemName: isEditMode ? "checkmark" : "pencil")
-                                Text(isEditMode ? "Save Item" : "Edit Item")
-                            }
-                            .font(.system(size: 16))
-                            .foregroundColor(isEditMode ? .white : Color("Accent1"))
-                            .padding(.vertical, 12)
-                            .frame(maxWidth: .infinity)
-                            .background(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .fill(isEditMode ? Color("Accent1") : Color.clear)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 12)
-                                            .stroke(Color("Accent1"), lineWidth: isEditMode ? 0 : 1)
-                                    )
-                            )
-                        }
-                        .buttonStyle(PlainButtonStyle())
                     }
                     .padding(.horizontal, 20)
                     .padding(.vertical, 24)
@@ -547,9 +548,6 @@ struct ItemDetailsView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("Done") {
-                        if isEditMode {
-                            saveChanges()
-                        }
                         isPresented = false
                     }
                 }
@@ -563,11 +561,7 @@ struct ItemDetailsView: View {
             TextField("Item title", text: $newChecklistItemTitle)
             Button("Add") {
                 if !newChecklistItemTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    let newChecklistItem = ChecklistItem(
-                        title: newChecklistItemTitle,
-                        sortOrder: editedChecklist.count
-                    )
-                    editedChecklist.append(newChecklistItem)
+                    itemManager.addChecklistItem(item, title: newChecklistItemTitle)
                     newChecklistItemTitle = ""
                 }
             }
@@ -585,7 +579,7 @@ struct ItemDetailsView: View {
         }
     }
     
-    // MARK: - Helper Methods
+    // MARK: - Individual Field Editing Methods
     
     private func setupEditableValues() {
         editedTitle = item.title
@@ -603,75 +597,109 @@ struct ItemDetailsView: View {
         }
     }
     
-    private func enterEditMode() {
-        setupEditableValues()
-        withAnimation(.easeInOut(duration: 0.3)) {
-            isEditMode = true
-        }
+    // Title editing
+    private func startEditingTitle() {
+        editedTitle = item.title
+        isEditingTitle = true
     }
     
-    private func saveChanges() {
-        // Update the item with edited values
+    private func saveTitle() {
         itemManager.updateItemName(item, newName: editedTitle)
-        itemManager.updateItemDate(item, newDate: editedDate)
-        itemManager.updateItemTime(item, time: hasTime ? editedTime : nil)
-        
-        // Convert rich text lines back to description string
+        isEditingTitle = false
+    }
+    
+    private func cancelTitleEdit() {
+        editedTitle = item.title
+        isEditingTitle = false
+    }
+    
+    // Description editing
+    private func startEditingDescription() {
+        if item.description.isEmpty {
+            editedDescriptionLines = []
+        } else {
+            editedDescriptionLines = [RichTextLine].fromDescriptionString(item.description)
+        }
+        isEditingDescription = true
+    }
+    
+    private func saveDescription() {
         let newDescription = editedDescriptionLines.toDescriptionString()
         itemManager.updateItemDescription(item, newDescription: newDescription)
-        
-        // Update checklist with proper sync
-        updateItemChecklist()
-        
-        // Update recurrence pattern (only for non-instances)
-        if !item.isRecurringInstance {
-            itemManager.updateRecurringPattern(item, pattern: editedRecurrencePattern)
-        }
-        
-        withAnimation(.easeInOut(duration: 0.3)) {
-            isEditMode = false
-        }
+        isEditingDescription = false
     }
     
-    private func updateItemChecklist() {
-        guard let itemIndex = itemManager.items.firstIndex(where: { $0.id == item.id }) else { return }
-        
-        // Update the checklist
-        itemManager.items[itemIndex].checklist = editedChecklist
-        itemManager.items[itemIndex].lastModified = Date()
-        
-        let updatedItem = itemManager.items[itemIndex]
-        
-        // Sync to CloudKit using the same pattern as other update methods
-        Task {
-            do {
-                let savedItem = try await CloudKitManager.shared.saveItem(updatedItem)
-                await MainActor.run {
-                    if let idx = itemManager.items.firstIndex(where: { $0.id == savedItem.id }) {
-                        itemManager.items[idx] = savedItem
-                    }
-                }
-            } catch {
-                await MainActor.run {
-                    itemManager.errorMessage = "Failed to sync checklist: \(error.localizedDescription)"
-                    itemManager.showingError = true
-                }
-            }
+    private func cancelDescriptionEdit() {
+        if item.description.isEmpty {
+            editedDescriptionLines = []
+        } else {
+            editedDescriptionLines = [RichTextLine].fromDescriptionString(item.description)
         }
+        isEditingDescription = false
+    }
+    
+    // Date editing
+    private func startEditingDate() {
+        editedDate = item.assignedDate
+        isEditingDate = true
+    }
+    
+    private func saveDate() {
+        itemManager.updateItemDate(item, newDate: editedDate)
+        isEditingDate = false
+    }
+    
+    private func cancelDateEdit() {
+        editedDate = item.assignedDate
+        isEditingDate = false
+    }
+    
+    // Time editing
+    private func startEditingTime() {
+        editedTime = item.assignedTime ?? Date()
+        hasTime = item.assignedTime != nil
+        isEditingTime = true
+    }
+    
+    private func saveTime() {
+        itemManager.updateItemTime(item, time: hasTime ? editedTime : nil)
+        isEditingTime = false
+    }
+    
+    private func cancelTimeEdit() {
+        editedTime = item.assignedTime ?? Date()
+        hasTime = item.assignedTime != nil
+        isEditingTime = false
+    }
+    
+    // Recurrence editing
+    private func startEditingRecurrence() {
+        editedRecurrencePattern = item.recurrencePattern
+        isEditingRecurrence = true
+    }
+    
+    private func saveRecurrence() {
+        itemManager.updateRecurringPattern(item, pattern: editedRecurrencePattern)
+        isEditingRecurrence = false
+    }
+    
+    private func cancelRecurrenceEdit() {
+        editedRecurrencePattern = item.recurrencePattern
+        isEditingRecurrence = false
+    }
+    
+    // Legacy methods for compatibility - now simplified
+    private func updateItemChecklist() {
+        // This method is now mostly handled by direct itemManager calls
+        // Keeping for any future checklist editing needs
     }
     
     private func toggleEditedChecklistItem(_ checklistItem: ChecklistItem) {
-        if let index = editedChecklist.firstIndex(where: { $0.id == checklistItem.id }) {
-            editedChecklist[index].isCompleted.toggle()
-        }
+        // Legacy method - functionality moved to direct itemManager calls
     }
     
     private func deleteEditedChecklistItem(_ checklistItem: ChecklistItem) {
-        editedChecklist.removeAll { $0.id == checklistItem.id }
-        // Reorder remaining items
-        for (index, _) in editedChecklist.enumerated() {
-            editedChecklist[index].sortOrder = index
-        }
+        // Legacy method - functionality moved to direct itemManager calls
     }
 }
 
