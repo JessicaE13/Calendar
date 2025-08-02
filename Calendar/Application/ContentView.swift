@@ -8,6 +8,7 @@ struct ContentView: View {
     @StateObject private var cloudKitManager = CloudKitManager.shared
     @StateObject private var categoryManager = CategoryManager.shared
     @StateObject private var routineManager = RoutineManager.shared
+    @StateObject private var habitManager = HabitManager.shared // NEW: Add habit manager
     @State private var showingCloudKitTest = false
     @State private var showingCategoryManagement = false
     
@@ -57,6 +58,7 @@ struct ContentView: View {
                             itemManager.forceSyncWithCloudKit()
                             categoryManager.forceSyncWithCloudKit()
                             routineManager.forceSyncWithCloudKit()
+                            habitManager.forceSyncWithCloudKit() // NEW: Sync habits too
                         } else {
                             showingCloudKitTest = true
                         }
@@ -99,6 +101,10 @@ struct ContentView: View {
                                 .padding(.horizontal, 20)
                         }
                         
+                        // NEW: Habit Card - show for all dates (past habits are read-only)
+                        HabitCardView(selectedDate: selectedDate)
+                            .padding(.horizontal, 20)
+                        
                         // Items List
                         ItemListView(itemManager: itemManager, selectedDate: selectedDate)
                     }
@@ -126,12 +132,25 @@ struct ContentView: View {
         } message: {
             Text(itemManager.errorMessage ?? "An unknown error occurred")
         }
+        // NEW: Add habit manager error handling
+        .alert("Habit Sync Error", isPresented: $habitManager.showingError) {
+            Button("OK") {
+                habitManager.showingError = false
+            }
+            Button("Retry") {
+                habitManager.forceSyncWithCloudKit()
+                habitManager.showingError = false
+            }
+        } message: {
+            Text(habitManager.errorMessage ?? "An unknown error occurred")
+        }
         .onAppear {
             // Check CloudKit status when app appears
             cloudKitManager.checkAccountStatus()
             // Sync all managers
             categoryManager.forceSyncWithCloudKit()
             routineManager.forceSyncWithCloudKit()
+            habitManager.forceSyncWithCloudKit() // NEW: Sync habits on app launch
         }
     }
     
@@ -154,7 +173,7 @@ struct ContentView: View {
     // MARK: - CloudKit Status Helpers
     
     private var cloudKitStatusIcon: String {
-        if itemManager.isLoading {
+        if itemManager.isLoading || habitManager.isLoading { // NEW: Check habit loading too
             return "arrow.clockwise"
         }
         
@@ -171,7 +190,7 @@ struct ContentView: View {
     }
     
     private var cloudKitStatusColor: Color {
-        if itemManager.isLoading {
+        if itemManager.isLoading || habitManager.isLoading { // NEW: Check habit loading too
             return .blue
         }
         
