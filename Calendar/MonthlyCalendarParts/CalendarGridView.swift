@@ -7,18 +7,6 @@
 
 import SwiftUI
 
-// MARK: - Swipe Direction Enum
-enum CalendarSwipeDirection {
-    case next, previous
-    
-    var monthIncrement: Int {
-        switch self {
-        case .next: return 1
-        case .previous: return -1
-        }
-    }
-}
-
 struct CalendarGridView: View {
     let currentMonth: Date
     @Binding var selectedDate: Date
@@ -400,61 +388,7 @@ struct CalendarGridView: View {
     }
 }
 
-struct CompactCalendarDayView: View {
-    let date: Date
-    let currentMonth: Date
-    @Binding var selectedDate: Date
-    let daySize: CGFloat
-    
-    private let calendar = Calendar.current
-    
-    private var dayString: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "d"
-        return formatter.string(from: date)
-    }
-    
-    private var isSelected: Bool {
-        calendar.isDate(date, equalTo: selectedDate, toGranularity: .day)
-    }
-    
-    private var isToday: Bool {
-        calendar.isDateInToday(date)
-    }
-    
-    var body: some View {
-        Button(action: {
-            selectedDate = date
-        }) {
-            ZStack {
-                Circle()
-                    .fill(backgroundColor)
-                    .frame(width: daySize, height: daySize)
-                    .overlay(
-                        Circle()
-                            .stroke(Color("Accent1"), lineWidth: isToday ? 1.0 : 0)
-                    )
-                
-                Text(dayString)
-                    .font(.system(size: 15))
-                    .fontWeight(.medium)
-                    .monospacedDigit()
-                    .foregroundColor(textColor)
-                    .frame(width: daySize - 6)
-                    .multilineTextAlignment(.center)
-            }
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-    
-    private var textColor: Color {
-        return isSelected ? .white :  .primary.opacity(0.7)
-    }
-    
-    private var backgroundColor: Color {
-        return isSelected ? Color("Accent1") : .clear
-    }
-}
+
 
 #Preview {
     @Previewable @State var selectedDate = Date()

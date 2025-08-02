@@ -1,6 +1,8 @@
 //
-//  Updated ContentView.swift
-//  Calendar completely outside ScrollView with proper pinning
+//  ContentView.swift
+//  Calendar
+//
+//  Week view only - clean and focused
 //
 
 import SwiftUI
@@ -8,7 +10,6 @@ import CloudKit
 
 struct ContentView: View {
     @State private var selectedDate = Date()
-    @State private var currentMonth = Date()
     @StateObject private var itemManager = ItemManager()
     @StateObject private var cloudKitManager = CloudKitManager.shared
     @StateObject private var categoryManager = CategoryManager.shared
@@ -18,21 +19,12 @@ struct ContentView: View {
     @State private var showingCloudKitTest = false
     @State private var showingCategoryManagement = false
     
-    // Calendar state management
-    @State private var scrollOffset: CGFloat = 0
-    @State private var isCalendarPinned = false
-    
-    // Thresholds for pinning behavior
-    private let pinThreshold: CGFloat = -100 // When to start pinning
-    private let unpinThreshold: CGFloat = -50 // When to unpin when scrolling down
-    
     var body: some View {
         ZStack {
             BackgroundView()
             
             VStack(spacing: 0) {
-                
-                // Top toolbar - ALWAYS FIXED AT TOP
+                // Top toolbar
                 HStack {
                     Button(action: {
                         showingCategoryManagement = true
@@ -83,107 +75,94 @@ struct ContentView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 8)
                 .background(Color("Background").opacity(0.95))
-                .zIndex(1002)
                 
-                // Calendar - ALWAYS OUTSIDE SCROLLVIEW
-                if isCalendarPinned {
-                    // Pinned Week Calendar
-                    PinnedWeekCalendarView(
-                        currentMonth: currentMonth,
-                        selectedDate: $selectedDate,
-                        onMonthChange: { direction in
-                            handleMonthChange(direction: direction)
-                        },
-                        onDateJump: { date in
-                            handleDateJump(to: date)
-                        },
-                        onUnpin: {
-                            withAnimation(.easeInOut(duration: 0.3)) {
-                                isCalendarPinned = false
-                            }
+                // Week Navigation Header
+                VStack(spacing: 12) {
+                    HStack {
+                        Button(action: {
+                            navigateWeek(.previous)
+                        }) {
+                            Image(systemName: "chevron.left")
+                                .font(.title3)
+                                .foregroundColor(Color("Accent1"))
                         }
-                    )
-                    .background(Color("Background").opacity(0.95))
-                    .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
-                    .zIndex(1001)
-                    .transition(.asymmetric(
-                        insertion: .move(edge: .top).combined(with: .opacity),
-                        removal: .move(edge: .top).combined(with: .opacity)
-                    ))
-                } else {
-                    // Full Calendar
-                    FullCalendarView(
-                        currentMonth: currentMonth,
-                        selectedDate: $selectedDate,
-                        onMonthChange: { direction in
-                            handleMonthChange(direction: direction)
-                        },
-                        onDateJump: { date in
-                            handleDateJump(to: date)
+                        
+                        Spacer()
+                        
+                        Text(weekTitle)
+                            .font(.system(.title2, design: .serif))
+                            .fontWeight(.semibold)
+                            .foregroundColor(.primary)
+                        
+                        Spacer()
+                        
+                        Button("Today") {
+                            selectedDate = Date()
                         }
-                    )
-                    .padding(.top, 12)
-                    .background(Color("Background").opacity(0.7))
-                    .zIndex(1001)
-                    .transition(.asymmetric(
-                        insertion: .move(edge: .bottom).combined(with: .opacity),
-                        removal: .move(edge: .top).combined(with: .opacity)
-                    ))
+                        .font(.system(size: 12))
+                        .fontWeight(.medium)
+                        .foregroundColor(Color("Accent1"))
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(Color("Accent1"), lineWidth: 1)
+                        )
+                        
+                        Button(action: {
+                            navigateWeek(.next)
+                        }) {
+                            Image(systemName: "chevron.right")
+                                .font(.title3)
+                                .foregroundColor(Color("Accent1"))
+                        }
+                    }
+                    .padding(.horizontal)
+                    
+                    // Week View
+                    WeekCalendarView(selectedDate: $selectedDate)
+                        .padding(.horizontal, 20)
                 }
+                .padding(.bottom, 12)
+                .background(Color("Background").opacity(0.95))
                 
-                // SCROLLABLE CONTENT - NO CALENDAR INSIDE
+                // Main Content Area
                 ScrollView {
-                    VStack(spacing: 0) {
-                        
-                        // Selected date display
-                        HStack {
-                            Text(selectedDateString())
-                                .font(.system(.title3, design: .serif))
-                                .fontWeight(.bold)
-                                .padding(.horizontal)
-                                .padding(.vertical, 16)
-                            
-                            Spacer()
-                        }
-                        .background(Color("Background").opacity(0.7))
-                        
-                        // Main content cards
+                    VStack(spacing: 16) {
+                        // Content Cards for selected date
                         VStack(spacing: 16) {
+                            // Date display
+                            HStack {
+                                Text(selectedDateString())
+                                    .font(.system(.title3, design: .serif))
+                                    .fontWeight(.bold)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 20)
+                            .padding(.top, 16)
+                            
                             // Routine Cards - only show for today or future dates
                             if !selectedDate.isInPast {
                                 RoutineCardsView(selectedDate: selectedDate)
                                     .padding(.horizontal, 20)
                             }
                             
-                            // Habit Card - show for all dates
+                            // Habit Card
                             HabitCardView(selectedDate: selectedDate)
                                 .padding(.horizontal, 20)
                             
-                            // Meal Card - show for all dates
+                            // Meal Card
                             MealCardView(selectedDate: selectedDate)
                                 .padding(.horizontal, 20)
                             
                             // Items List
                             ItemListView(itemManager: itemManager, selectedDate: selectedDate)
                             
-                            // Extra space at bottom for better scrolling
+                            // Extra space at bottom
                             Color.clear
-                                .frame(height: 200)
+                                .frame(height: 100)
                         }
-                        .background(Color("Background").opacity(0.7))
                     }
-                    .background(
-                        GeometryReader { geometry in
-                            Color.clear
-                                .preference(key: ScrollOffsetPreferenceKey.self,
-                                          value: geometry.frame(in: .named("scroll")).minY)
-                        }
-                    )
-                }
-                .coordinateSpace(name: "scroll")
-                .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
-                    scrollOffset = value
-                    updatePinnedState()
                 }
             }
         }
@@ -238,40 +217,41 @@ struct ContentView: View {
         }
     }
     
-    // MARK: - Calendar State Management
+    // MARK: - Week Navigation
     
-    private func updatePinnedState() {
-        let shouldPin: Bool
+    private var weekTitle: String {
+        let calendar = Calendar.current
+        let weekInterval = calendar.dateInterval(of: .weekOfYear, for: selectedDate)
         
-        if isCalendarPinned {
-            // Already pinned - check if we should unpin (scrolled down enough)
-            shouldPin = scrollOffset < unpinThreshold
+        guard let startOfWeek = weekInterval?.start,
+              let endOfWeek = calendar.date(byAdding: .day, value: 6, to: startOfWeek) else {
+            return "This Week"
+        }
+        
+        let formatter = DateFormatter()
+        
+        // If the week spans different months
+        if !calendar.isDate(startOfWeek, equalTo: endOfWeek, toGranularity: .month) {
+            formatter.dateFormat = "MMM d"
+            let startString = formatter.string(from: startOfWeek)
+            formatter.dateFormat = "MMM d, yyyy"
+            let endString = formatter.string(from: endOfWeek)
+            return "\(startString) - \(endString)"
         } else {
-            // Not pinned - check if we should pin (scrolled up enough)
-            shouldPin = scrollOffset < pinThreshold
-        }
-        
-        if shouldPin != isCalendarPinned {
-            withAnimation(.easeInOut(duration: 0.25)) {
-                isCalendarPinned = shouldPin
-            }
+            formatter.dateFormat = "MMM d"
+            let startString = formatter.string(from: startOfWeek)
+            let endDay = calendar.component(.day, from: endOfWeek)
+            formatter.dateFormat = "yyyy"
+            let year = formatter.string(from: endOfWeek)
+            return "\(startString) - \(endDay), \(year)"
         }
     }
     
-    // MARK: - Month Navigation
-    
-    private func handleMonthChange(direction: CalendarSwipeDirection) {
-        let increment = direction.monthIncrement
-        if let newMonth = Calendar.current.date(byAdding: .month, value: increment, to: currentMonth) {
-            currentMonth = newMonth
+    private func navigateWeek(_ direction: CalendarSwipeDirection) {
+        let calendar = Calendar.current
+        if let newDate = calendar.date(byAdding: .weekOfYear, value: direction.monthIncrement, to: selectedDate) {
+            selectedDate = newDate
         }
-    }
-    
-    // MARK: - Date Jump Navigation
-    
-    private func handleDateJump(to date: Date) {
-        currentMonth = Calendar.current.startOfDay(for: date)
-        selectedDate = date
     }
     
     // MARK: - CloudKit Status Helpers
@@ -319,333 +299,63 @@ struct ContentView: View {
     }
 }
 
-// MARK: - Full Calendar View (Normal State)
-struct FullCalendarView: View {
-    let currentMonth: Date
+// MARK: - Week Calendar View
+struct WeekCalendarView: View {
     @Binding var selectedDate: Date
-    let onMonthChange: (CalendarSwipeDirection) -> Void
-    let onDateJump: ((Date) -> Void)?
-    
-    // State for date picker
-    @State private var showingDatePicker = false
-    @State private var pickerDate: Date
     
     private let calendar = Calendar.current
-    private let daySize: CGFloat = 36
-    private let gridSpacing: CGFloat = 4
-    private let horizontalPadding: CGFloat = 16
     
-    init(currentMonth: Date, selectedDate: Binding<Date>, onMonthChange: @escaping (CalendarSwipeDirection) -> Void, onDateJump: ((Date) -> Void)? = nil) {
-        self.currentMonth = currentMonth
-        self._selectedDate = selectedDate
-        self.onMonthChange = onMonthChange
-        self.onDateJump = onDateJump
-        self._pickerDate = State(initialValue: currentMonth)
-    }
-    
-    private let dayHeaders = [
-        (id: 0, letter: "S"), (id: 1, letter: "M"), (id: 2, letter: "T"),
-        (id: 3, letter: "W"), (id: 4, letter: "T"), (id: 5, letter: "F"), (id: 6, letter: "S")
-    ]
-    
-    private var monthYearString: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMMM yyyy"
-        return formatter.string(from: currentMonth)
-    }
-    
-    private var weeks: [[Date?]] {
-        guard let monthInterval = calendar.dateInterval(of: .month, for: currentMonth),
-              let monthFirstWeek = calendar.dateInterval(of: .weekOfYear, for: monthInterval.start),
-              let monthLastWeek = calendar.dateInterval(of: .weekOfYear, for: monthInterval.end) else {
-            return []
-        }
-        
-        var weeks: [[Date?]] = []
-        var currentWeek: [Date?] = []
-        
-        let startDate = monthFirstWeek.start
-        let endDate = monthLastWeek.end
-        
-        var date = startDate
-        while date < endDate {
-            let dateToAdd: Date? = calendar.isDate(date, equalTo: currentMonth, toGranularity: .month) ? date : nil
-            currentWeek.append(dateToAdd)
-            
-            if currentWeek.count == 7 {
-                weeks.append(currentWeek)
-                currentWeek = []
-            }
-            
-            date = calendar.date(byAdding: .day, value: 1, to: date)!
-        }
-        
-        return weeks
-    }
-    
-    private func goToToday() {
-        let today = Date()
-        selectedDate = today
-        
-        if !calendar.isDate(currentMonth, equalTo: today, toGranularity: .month) {
-            onDateJump?(today)
-        }
-    }
-    
-    var body: some View {
-        VStack(spacing: 0) {
-            
-            // Header
-            HStack {
-                Button(action: {
-                    pickerDate = currentMonth
-                    showingDatePicker = true
-                }) {
-                    Text(monthYearString)
-                        .font(.system(.title, design: .serif))
-                        .fontWeight(.semibold)
-                        .foregroundColor(.primary)
-                }
-                .buttonStyle(PlainButtonStyle())
-                
-                Spacer()
-                
-                HStack(spacing: 0) {
-                    Button(action: { onMonthChange(.previous) }) {
-                        Image(systemName: "chevron.left")
-                            .font(.title3)
-                            .foregroundColor(Color("Accent1"))
-                    }
-                    
-                    Button(action: goToToday) {
-                        Text("Today")
-                            .font(.system(size: 12))
-                            .fontWeight(.medium)
-                            .foregroundColor(Color("Accent1"))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .stroke(Color("Accent1"), lineWidth: 1)
-                            )
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .padding(.horizontal, 4)
-                    
-                    Button(action: { onMonthChange(.next) }) {
-                        Image(systemName: "chevron.right")
-                            .font(.title3)
-                            .foregroundColor(Color("Accent1"))
-                    }
-                }
-                .padding(.horizontal, horizontalPadding)
-            }
-            .padding(.bottom, 12)
-            
-            // Day headers
-            HStack {
-                ForEach(dayHeaders, id: \.id) { dayHeader in
-                    Text(dayHeader.letter)
-                        .font(.system(size: 12))
-                        .fontWeight(.semibold)
-                        .tracking(0.5)
-                        .foregroundColor(.primary.opacity(0.8))
-                        .frame(width: daySize)
-                }
-            }
-            .padding(.horizontal, horizontalPadding)
-            .padding(.bottom, 6)
-            
-            Divider()
-                .padding(.horizontal, horizontalPadding)
-                .padding(.bottom, 6)
-            
-            // Full month grid
-            LazyVGrid(columns: Array(repeating: GridItem(.fixed(daySize)), count: 7), spacing: gridSpacing) {
-                ForEach(Array(weeks.enumerated()), id: \.offset) { weekIndex, week in
-                    ForEach(Array(week.enumerated()), id: \.offset) { dayIndex, date in
-                        if let date = date {
-                            CompactCalendarDayView(
-                                date: date,
-                                currentMonth: currentMonth,
-                                selectedDate: $selectedDate,
-                                daySize: daySize
-                            )
-                        } else {
-                            Color.clear
-                                .frame(width: daySize, height: daySize)
-                        }
-                    }
-                }
-            }
-            .padding(.horizontal, horizontalPadding)
-        }
-        .gesture(
-            DragGesture()
-                .onEnded { value in
-                    let horizontalSwipeThreshold: CGFloat = 50
-                    if abs(value.translation.width) > horizontalSwipeThreshold && abs(value.translation.height) < 30 {
-                        if value.translation.width > horizontalSwipeThreshold {
-                            onMonthChange(.previous)
-                        } else if value.translation.width < -horizontalSwipeThreshold {
-                            onMonthChange(.next)
-                        }
-                    }
-                }
-        )
-        .sheet(isPresented: $showingDatePicker) {
-            // Date picker sheet
-            VStack(spacing: 30) {
-                HStack {
-                    Spacer()
-                    Button("✕") { showingDatePicker = false }
-                        .font(.title2)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.horizontal, 24)
-                .padding(.top, 24)
-                
-                Text("Jump to Date")
-                    .font(.title2)
-                    .fontWeight(.bold)
-                
-                DatePicker("Select Date", selection: $pickerDate, displayedComponents: .date)
-                    .datePickerStyle(.wheel)
-                    .padding(.horizontal, 20)
-                
-                Button("Go to Date") {
-                    onDateJump?(pickerDate)
-                    showingDatePicker = false
-                }
-                .font(.title3)
-                .fontWeight(.semibold)
-                .foregroundColor(.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(Color("Accent1"))
-                .cornerRadius(10)
-                .padding(.horizontal, 20)
-                
-                Spacer()
-            }
-            .presentationDetents([.height(400)])
-        }
-    }
-}
-
-// MARK: - Pinned Week Calendar View (Compact State)
-struct PinnedWeekCalendarView: View {
-    let currentMonth: Date
-    @Binding var selectedDate: Date
-    let onMonthChange: (CalendarSwipeDirection) -> Void
-    let onDateJump: ((Date) -> Void)?
-    let onUnpin: () -> Void
-    
-    private let calendar = Calendar.current
-    private let daySize: CGFloat = 32
-    private let horizontalPadding: CGFloat = 16
-    
-    // Get current week containing selected date
-    private var currentWeek: [Date?] {
+    private var weekDates: [Date] {
         guard let weekInterval = calendar.dateInterval(of: .weekOfYear, for: selectedDate) else {
             return []
         }
         
-        var week: [Date?] = []
+        var dates: [Date] = []
         var date = weekInterval.start
         
         for _ in 0..<7 {
-            week.append(date)
+            dates.append(date)
             date = calendar.date(byAdding: .day, value: 1, to: date)!
         }
         
-        return week
-    }
-    
-    private var weekDateRange: String {
-        guard let firstDate = currentWeek.compactMap({ $0 }).first,
-              let lastDate = currentWeek.compactMap({ $0 }).last else {
-            return ""
-        }
-        
-        let formatter = DateFormatter()
-        
-        // If the week spans different months
-        if !calendar.isDate(firstDate, equalTo: lastDate, toGranularity: .month) {
-            formatter.dateFormat = "MMM d"
-            let firstString = formatter.string(from: firstDate)
-            formatter.dateFormat = "MMM d, yyyy"
-            let lastString = formatter.string(from: lastDate)
-            return "\(firstString) - \(lastString)"
-        } else {
-            formatter.dateFormat = "MMM d"
-            let firstString = formatter.string(from: firstDate)
-            let lastDay = calendar.component(.day, from: lastDate)
-            formatter.dateFormat = "yyyy"
-            let year = formatter.string(from: lastDate)
-            return "\(firstString) - \(lastDay), \(year)"
-        }
+        return dates
     }
     
     var body: some View {
-        VStack(spacing: 8) {
-            // Compact header with week range
-            HStack {
-                Button(action: { onMonthChange(.previous) }) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 16))
-                        .foregroundColor(Color("Accent1"))
-                }
-                
-                Text(weekDateRange)
-                    .font(.system(size: 16))
-                    .fontWeight(.medium)
-                    .foregroundColor(.primary)
-                
-                Spacer()
-                
-                Button("Expand") {
-                    onUnpin()
-                }
-                .font(.system(size: 12))
-                .foregroundColor(Color("Accent1"))
-                
-                Button(action: { onMonthChange(.next) }) {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 16))
-                        .foregroundColor(Color("Accent1"))
-                }
+        HStack(spacing: 8) {
+            ForEach(weekDates, id: \.self) { date in
+                WeekDayView(
+                    date: date,
+                    selectedDate: $selectedDate,
+                    isSelected: calendar.isDate(date, equalTo: selectedDate, toGranularity: .day)
+                )
             }
-            .padding(.horizontal, horizontalPadding)
-            
-            // Week view
-            HStack(spacing: 4) {
-                ForEach(Array(currentWeek.enumerated()), id: \.offset) { index, date in
-                    if let date = date {
-                        CompactCalendarDayView(
-                            date: date,
-                            currentMonth: currentMonth,
-                            selectedDate: $selectedDate,
-                            daySize: daySize
-                        )
-                    } else {
-                        Color.clear
-                            .frame(width: daySize, height: daySize)
-                    }
-                }
-            }
-            .padding(.horizontal, horizontalPadding)
         }
-        .padding(.vertical, 8)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(Color.white.opacity(0.8))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12)
+                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                )
+        )
         .gesture(
             DragGesture()
                 .onEnded { value in
-                    let horizontalSwipeThreshold: CGFloat = 50
-                    if abs(value.translation.width) > horizontalSwipeThreshold && abs(value.translation.height) < 30 {
-                        if value.translation.width > horizontalSwipeThreshold {
-                            onMonthChange(.previous)
-                        } else if value.translation.width < -horizontalSwipeThreshold {
-                            onMonthChange(.next)
+                    let threshold: CGFloat = 50
+                    if abs(value.translation.width) > threshold && abs(value.translation.height) < 30 {
+                        if value.translation.width > threshold {
+                            // Swipe right - previous week
+                            if let newDate = calendar.date(byAdding: .weekOfYear, value: -1, to: selectedDate) {
+                                selectedDate = newDate
+                            }
+                        } else if value.translation.width < -threshold {
+                            // Swipe left - next week
+                            if let newDate = calendar.date(byAdding: .weekOfYear, value: 1, to: selectedDate) {
+                                selectedDate = newDate
+                            }
                         }
                     }
                 }
@@ -653,23 +363,22 @@ struct PinnedWeekCalendarView: View {
     }
 }
 
-// MARK: - Compact Calendar Day View
-struct CompactCalendarDayView: View {
+// MARK: - Week Day View
+struct WeekDayView: View {
     let date: Date
-    let currentMonth: Date
     @Binding var selectedDate: Date
-    let daySize: CGFloat
+    let isSelected: Bool
     
     private let calendar = Calendar.current
     
-    private var dayString: String {
+    private var dayLetter: String {
         let formatter = DateFormatter()
-        formatter.dateFormat = "d"
-        return formatter.string(from: date)
+        formatter.dateFormat = "E"
+        return String(formatter.string(from: date).prefix(1))
     }
     
-    private var isSelected: Bool {
-        calendar.isDate(date, equalTo: selectedDate, toGranularity: .day)
+    private var dayNumber: String {
+        return "\(calendar.component(.day, from: date))"
     }
     
     private var isToday: Bool {
@@ -678,44 +387,49 @@ struct CompactCalendarDayView: View {
     
     var body: some View {
         Button(action: {
-            selectedDate = date
-        }) {
-            ZStack {
-                Circle()
-                    .fill(backgroundColor)
-                    .frame(width: daySize, height: daySize)
-                    .overlay(
-                        Circle()
-                            .stroke(Color("Accent1"), lineWidth: isToday ? 1.0 : 0)
-                    )
-                
-                Text(dayString)
-                    .font(.system(size: 15))
-                    .fontWeight(.medium)
-                    .monospacedDigit()
-                    .foregroundColor(textColor)
-                    .frame(width: daySize - 6)
-                    .multilineTextAlignment(.center)
+            withAnimation(.easeInOut(duration: 0.2)) {
+                selectedDate = date
             }
+        }) {
+            VStack(spacing: 6) {
+                Text(dayLetter)
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+                    .fontWeight(.medium)
+                    .textCase(.uppercase)
+                    .tracking(0.5)
+                
+                Text(dayNumber)
+                    .font(.system(size: 18))
+                    .fontWeight(.semibold)
+                    .foregroundColor(isSelected ? .white : .primary)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 56)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(isSelected ? Color("Accent1") : (isToday ? Color("Accent1").opacity(0.15) : Color.clear))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(isToday && !isSelected ? Color("Accent1").opacity(0.5) : Color.clear, lineWidth: 1.5)
+                    )
+            )
         }
         .buttonStyle(PlainButtonStyle())
-    }
-    
-    private var textColor: Color {
-        return isSelected ? .white :  .primary.opacity(0.7)
-    }
-    
-    private var backgroundColor: Color {
-        return isSelected ? Color("Accent1") : .clear
+        .scaleEffect(isSelected ? 1.02 : 1.0)
+        .animation(.easeInOut(duration: 0.2), value: isSelected)
     }
 }
 
-// MARK: - Preference Keys
-struct ScrollOffsetPreferenceKey: PreferenceKey {
-    static var defaultValue: CGFloat = 0
+// MARK: - Calendar Swipe Direction (for week navigation)
+enum CalendarSwipeDirection {
+    case next, previous
     
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
-        value = nextValue()
+    var monthIncrement: Int {
+        switch self {
+        case .next: return 1
+        case .previous: return -1
+        }
     }
 }
 
