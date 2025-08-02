@@ -1,8 +1,6 @@
 //
-//  MealCardView.swift
-//  Calendar
-//
-//  Simple meal planning card showing meal types vertically with icons
+//  Enhanced MealCardView.swift
+//  Replace your existing MealCardView with this version for better nutrition visibility
 //
 
 import SwiftUI
@@ -12,7 +10,7 @@ struct MealCardView: View {
     @StateObject private var mealManager = MealManager.shared
     @StateObject private var categoryManager = CategoryManager.shared
     @State private var showingMealManagement = false
-    @State private var showNutritionSummary = false
+    @State private var showNutritionSummary = true // Default to showing nutrition
     
     private var mealsForToday: [PlannedMeal] {
         mealManager.mealsForDate(selectedDate)
@@ -24,9 +22,16 @@ struct MealCardView: View {
         }
     }
     
+    // Calculate total daily nutrition
+    private var totalNutrition: NutritionData {
+        mealsForToday.reduce(NutritionData.empty) { total, meal in
+            return total + meal.getNutritionData(from: mealManager)
+        }
+    }
+    
     var body: some View {
         VStack(spacing: 0) {
-            // Header
+            // Header with nutrition toggle
             HStack {
                 Text("Meals")
                     .font(.system(size: 16))
@@ -35,8 +40,26 @@ struct MealCardView: View {
                 
                 Spacer()
                 
-                // Nutrition toggle (only show if there's nutrition data)
-                if hasMealsWithNutrition {
+                // Always show nutrition info if any meals exist
+                if !mealsForToday.isEmpty {
+                    // Daily calories indicator
+                    if totalNutrition.calories > 0 {
+                        HStack(spacing: 4) {
+                            Image(systemName: "flame.fill")
+                                .font(.system(size: 10))
+                                .foregroundColor(.orange)
+                            Text("\(Int(totalNutrition.calories))")
+                                .font(.system(size: 12))
+                                .fontWeight(.medium)
+                                .foregroundColor(.orange)
+                        }
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.orange.opacity(0.1))
+                        .cornerRadius(8)
+                    }
+                    
+                    // Nutrition toggle button
                     Button(action: {
                         showNutritionSummary.toggle()
                     }) {
@@ -61,11 +84,12 @@ struct MealCardView: View {
             .padding(.top, 12)
             .padding(.bottom, 8)
             
-            // Optional nutrition summary
-            if showNutritionSummary && hasMealsWithNutrition {
-                DailyNutritionSummary(
+            // Nutrition summary (show by default if data exists)
+            if showNutritionSummary && totalNutrition.calories > 0 {
+                EnhancedNutritionSummary(
                     selectedDate: selectedDate,
-                    mealManager: mealManager
+                    mealManager: mealManager,
+                    totalNutrition: totalNutrition
                 )
                 .padding(.horizontal, 16)
                 .padding(.bottom, 8)
@@ -74,7 +98,7 @@ struct MealCardView: View {
             // Meal types list - vertical stack
             VStack(spacing: 0) {
                 ForEach(Array(MealType.allCases.enumerated()), id: \.element) { index, mealType in
-                    MealTypeRow(
+                    EnhancedMealTypeRow(
                         mealType: mealType,
                         selectedDate: selectedDate,
                         mealManager: mealManager,
@@ -108,7 +132,162 @@ struct MealCardView: View {
     }
 }
 
-struct MealTypeRow: View {
+// Enhanced nutrition summary with better styling
+struct EnhancedNutritionSummary: View {
+    let selectedDate: Date
+    @ObservedObject var mealManager: MealManager
+    let totalNutrition: NutritionData
+    
+    var body: some View {
+        VStack(spacing: 10) {
+            // Main calories display
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Daily Nutrition")
+                        .font(.system(size: 14))
+                        .fontWeight(.medium)
+                        .foregroundColor(.primary)
+                    
+                    HStack(spacing: 4) {
+                        Image(systemName: "flame.fill")
+                            .font(.system(size: 12))
+                            .foregroundColor(.orange)
+                        Text("\(Int(totalNutrition.calories)) calories")
+                            .font(.system(size: 16))
+                            .fontWeight(.semibold)
+                            .foregroundColor(.orange)
+                    }
+                }
+                
+                Spacer()
+                
+                // Quick macro breakdown
+                HStack(spacing: 8) {
+                    MacroIndicator(
+                        label: "C",
+                        value: Int(totalNutrition.carbs),
+                        color: .blue
+                    )
+                    MacroIndicator(
+                        label: "P",
+                        value: Int(totalNutrition.protein),
+                        color: .red
+                    )
+                    MacroIndicator(
+                        label: "F",
+                        value: Int(totalNutrition.fat),
+                        color: .green
+                    )
+                }
+            }
+            
+            // Progress bars for macros
+            MacroProgressBars(nutrition: totalNutrition)
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(Color.orange.opacity(0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.orange.opacity(0.2), lineWidth: 1)
+                )
+        )
+    }
+}
+
+struct MacroIndicator: View {
+    let label: String
+    let value: Int
+    let color: Color
+    
+    var body: some View {
+        VStack(spacing: 1) {
+            Text(label)
+                .font(.system(size: 8))
+                .fontWeight(.medium)
+                .foregroundColor(.secondary)
+                .textCase(.uppercase)
+            
+            Text("\(value)g")
+                .font(.system(size: 11))
+                .fontWeight(.semibold)
+                .foregroundColor(color)
+        }
+    }
+}
+
+struct MacroProgressBars: View {
+    let nutrition: NutritionData
+    
+    // Rough daily targets for reference (you could make these user-configurable)
+    private let dailyTargets = (carbs: 250.0, protein: 150.0, fat: 80.0)
+    
+    var body: some View {
+        VStack(spacing: 4) {
+            MacroProgressBar(
+                label: "Carbs",
+                current: nutrition.carbs,
+                target: dailyTargets.carbs,
+                color: .blue
+            )
+            MacroProgressBar(
+                label: "Protein",
+                current: nutrition.protein,
+                target: dailyTargets.protein,
+                color: .red
+            )
+            MacroProgressBar(
+                label: "Fat",
+                current: nutrition.fat,
+                target: dailyTargets.fat,
+                color: .green
+            )
+        }
+    }
+}
+
+struct MacroProgressBar: View {
+    let label: String
+    let current: Double
+    let target: Double
+    let color: Color
+    
+    private var progress: Double {
+        min(current / target, 1.0)
+    }
+    
+    var body: some View {
+        HStack(spacing: 8) {
+            Text(label)
+                .font(.system(size: 10))
+                .foregroundColor(.secondary)
+                .frame(width: 30, alignment: .leading)
+            
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    Rectangle()
+                        .fill(color.opacity(0.2))
+                        .frame(height: 4)
+                        .cornerRadius(2)
+                    
+                    Rectangle()
+                        .fill(color)
+                        .frame(width: geometry.size.width * progress, height: 4)
+                        .cornerRadius(2)
+                }
+            }
+            .frame(height: 4)
+            
+            Text("\(Int(current))g")
+                .font(.system(size: 10))
+                .foregroundColor(color)
+                .frame(width: 25, alignment: .trailing)
+        }
+    }
+}
+
+struct EnhancedMealTypeRow: View {
     let mealType: MealType
     let selectedDate: Date
     @ObservedObject var mealManager: MealManager
@@ -135,6 +314,10 @@ struct MealTypeRow: View {
     
     private var isPlanned: Bool {
         return plannedMeal != nil
+    }
+    
+    private var mealNutrition: NutritionData {
+        plannedMeal?.getNutritionData(from: mealManager) ?? NutritionData.empty
     }
     
     var body: some View {
@@ -167,8 +350,26 @@ struct MealTypeRow: View {
             
             Spacer()
             
-            // Time and nutrition info
+            // Nutrition and time info
             VStack(alignment: .trailing, spacing: 2) {
+                // Show calories prominently if available
+                if mealNutrition.calories > 0 {
+                    HStack(spacing: 3) {
+                        Image(systemName: "flame.fill")
+                            .font(.system(size: 8))
+                            .foregroundColor(.orange)
+                        Text("\(Int(mealNutrition.calories))")
+                            .font(.system(size: 11))
+                            .fontWeight(.medium)
+                            .foregroundColor(.orange)
+                    }
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(Color.orange.opacity(0.1))
+                    .cornerRadius(4)
+                }
+                
+                // Time info
                 if let recipe = recipe, recipe.totalTime > 0 {
                     HStack(spacing: 2) {
                         Image(systemName: "clock")
@@ -177,14 +378,6 @@ struct MealTypeRow: View {
                             .font(.system(size: 10))
                     }
                     .foregroundColor(.secondary)
-                }
-                
-                // Nutrition badge for planned meals
-                if isPlanned {
-                    let nutrition = plannedMeal?.getNutritionData(from: mealManager) ?? NutritionData.empty
-                    if nutrition.calories > 0 {
-                        MealNutritionBadge(nutrition: nutrition, isCompact: true)
-                    }
                 }
             }
         }

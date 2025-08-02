@@ -528,7 +528,8 @@ class MealManager: ObservableObject {
     init() {
         loadSampleData()
     }
-    
+
+
     private func loadSampleData() {
         guard recipes.isEmpty else { return }
         
@@ -538,6 +539,7 @@ class MealManager: ObservableObject {
             let foodCategory = categoryManager.categories.first { $0.name == "Food" } ??
                               categoryManager.categories.first { $0.name == "Personal" }
             
+            // Pancake Recipe with Nutrition Data
             var pancakeRecipe = Recipe(
                 name: "Fluffy Pancakes",
                 description: "Light and fluffy breakfast pancakes",
@@ -546,16 +548,59 @@ class MealManager: ObservableObject {
                 servings: 4
             )
             pancakeRecipe.categoryID = foodCategory?.id
+            
+            // Add ingredients with realistic nutrition data
             pancakeRecipe.ingredients = [
-                Ingredient(name: "All-purpose flour", amount: "2 cups", category: "Baking"),
-                Ingredient(name: "Sugar", amount: "2 tbsp", category: "Baking"),
-                Ingredient(name: "Baking powder", amount: "2 tsp", category: "Baking"),
-                Ingredient(name: "Salt", amount: "1/2 tsp", category: "Baking"),
-                Ingredient(name: "Milk", amount: "1 3/4 cups", category: "Dairy"),
-                Ingredient(name: "Eggs", amount: "2 large", category: "Dairy"),
-                Ingredient(name: "Butter", amount: "1/4 cup melted", category: "Dairy"),
-                Ingredient(name: "Vanilla extract", amount: "1 tsp", category: "Baking")
+                createIngredientWithNutrition(
+                    name: "All-purpose flour",
+                    amount: "2 cups",
+                    category: "Baking",
+                    calories: 910, protein: 24, carbs: 190, fat: 2.4, fiber: 6.8
+                ),
+                createIngredientWithNutrition(
+                    name: "Sugar",
+                    amount: "2 tbsp",
+                    category: "Baking",
+                    calories: 96, protein: 0, carbs: 25, fat: 0, fiber: 0
+                ),
+                createIngredientWithNutrition(
+                    name: "Baking powder",
+                    amount: "2 tsp",
+                    category: "Baking",
+                    calories: 5, protein: 0, carbs: 1.3, fat: 0, fiber: 0
+                ),
+                createIngredientWithNutrition(
+                    name: "Salt",
+                    amount: "1/2 tsp",
+                    category: "Baking",
+                    calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0
+                ),
+                createIngredientWithNutrition(
+                    name: "Milk",
+                    amount: "1 3/4 cups",
+                    category: "Dairy",
+                    calories: 220, protein: 12, carbs: 17, fat: 12, fiber: 0
+                ),
+                createIngredientWithNutrition(
+                    name: "Eggs",
+                    amount: "2 large",
+                    category: "Dairy",
+                    calories: 140, protein: 12, carbs: 1, fat: 10, fiber: 0
+                ),
+                createIngredientWithNutrition(
+                    name: "Butter",
+                    amount: "1/4 cup melted",
+                    category: "Dairy",
+                    calories: 407, protein: 0.5, carbs: 0, fat: 46, fiber: 0
+                ),
+                createIngredientWithNutrition(
+                    name: "Vanilla extract",
+                    amount: "1 tsp",
+                    category: "Baking",
+                    calories: 12, protein: 0, carbs: 0.5, fat: 0, fiber: 0
+                )
             ]
+            
             pancakeRecipe.instructions = [
                 "Mix dry ingredients in a large bowl",
                 "Whisk wet ingredients in another bowl",
@@ -567,6 +612,7 @@ class MealManager: ObservableObject {
             ]
             pancakeRecipe.tags = ["breakfast", "family-friendly", "vegetarian"]
             
+            // Mediterranean Salad with Nutrition Data
             var saladRecipe = Recipe(
                 name: "Mediterranean Salad",
                 description: "Fresh and healthy Mediterranean-style salad",
@@ -575,17 +621,64 @@ class MealManager: ObservableObject {
                 servings: 2
             )
             saladRecipe.categoryID = foodCategory?.id
+            
             saladRecipe.ingredients = [
-                Ingredient(name: "Mixed greens", amount: "4 cups", category: "Vegetables"),
-                Ingredient(name: "Cherry tomatoes", amount: "1 cup halved", category: "Vegetables"),
-                Ingredient(name: "Cucumber", amount: "1 medium diced", category: "Vegetables"),
-                Ingredient(name: "Red onion", amount: "1/4 cup sliced", category: "Vegetables"),
-                Ingredient(name: "Feta cheese", amount: "1/2 cup crumbled", category: "Dairy"),
-                Ingredient(name: "Kalamata olives", amount: "1/4 cup", category: "Vegetables"),
-                Ingredient(name: "Olive oil", amount: "3 tbsp", category: "Pantry"),
-                Ingredient(name: "Lemon juice", amount: "2 tbsp", category: "Pantry"),
-                Ingredient(name: "Dried oregano", amount: "1 tsp", category: "Spices")
+                createIngredientWithNutrition(
+                    name: "Mixed greens",
+                    amount: "4 cups",
+                    category: "Vegetables",
+                    calories: 20, protein: 2, carbs: 4, fat: 0, fiber: 2
+                ),
+                createIngredientWithNutrition(
+                    name: "Cherry tomatoes",
+                    amount: "1 cup halved",
+                    category: "Vegetables",
+                    calories: 27, protein: 1.3, carbs: 5.8, fat: 0.3, fiber: 1.8
+                ),
+                createIngredientWithNutrition(
+                    name: "Cucumber",
+                    amount: "1 medium diced",
+                    category: "Vegetables",
+                    calories: 16, protein: 0.7, carbs: 4, fat: 0.1, fiber: 1.5
+                ),
+                createIngredientWithNutrition(
+                    name: "Red onion",
+                    amount: "1/4 cup sliced",
+                    category: "Vegetables",
+                    calories: 16, protein: 0.4, carbs: 3.7, fat: 0, fiber: 0.7
+                ),
+                createIngredientWithNutrition(
+                    name: "Feta cheese",
+                    amount: "1/2 cup crumbled",
+                    category: "Dairy",
+                    calories: 200, protein: 11, carbs: 3, fat: 16, fiber: 0
+                ),
+                createIngredientWithNutrition(
+                    name: "Kalamata olives",
+                    amount: "1/4 cup",
+                    category: "Vegetables",
+                    calories: 60, protein: 0.4, carbs: 1.6, fat: 5.5, fiber: 1
+                ),
+                createIngredientWithNutrition(
+                    name: "Olive oil",
+                    amount: "3 tbsp",
+                    category: "Pantry",
+                    calories: 357, protein: 0, carbs: 0, fat: 40.5, fiber: 0
+                ),
+                createIngredientWithNutrition(
+                    name: "Lemon juice",
+                    amount: "2 tbsp",
+                    category: "Pantry",
+                    calories: 7, protein: 0.1, carbs: 2.1, fat: 0, fiber: 0.1
+                ),
+                createIngredientWithNutrition(
+                    name: "Dried oregano",
+                    amount: "1 tsp",
+                    category: "Spices",
+                    calories: 3, protein: 0.1, carbs: 0.7, fat: 0.1, fiber: 0.4
+                )
             ]
+            
             saladRecipe.instructions = [
                 "Wash and prepare all vegetables",
                 "Combine greens, tomatoes, cucumber, and onion in a large bowl",
@@ -596,18 +689,97 @@ class MealManager: ObservableObject {
             ]
             saladRecipe.tags = ["healthy", "vegetarian", "quick", "lunch"]
             
-            self.recipes = [pancakeRecipe, saladRecipe]
+            // Grilled Chicken with Nutrition
+            var chickenRecipe = Recipe(
+                name: "Grilled Chicken Breast",
+                description: "Simple seasoned grilled chicken",
+                prepTime: 5,
+                cookTime: 20,
+                servings: 2
+            )
+            chickenRecipe.categoryID = foodCategory?.id
             
-            // Sample planned meals for today
+            chickenRecipe.ingredients = [
+                createIngredientWithNutrition(
+                    name: "Chicken breast",
+                    amount: "2 pieces (6 oz each)",
+                    category: "Protein",
+                    calories: 540, protein: 101, carbs: 0, fat: 12, fiber: 0
+                ),
+                createIngredientWithNutrition(
+                    name: "Olive oil",
+                    amount: "1 tbsp",
+                    category: "Pantry",
+                    calories: 119, protein: 0, carbs: 0, fat: 13.5, fiber: 0
+                ),
+                createIngredientWithNutrition(
+                    name: "Salt",
+                    amount: "1 tsp",
+                    category: "Spices",
+                    calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0
+                ),
+                createIngredientWithNutrition(
+                    name: "Black pepper",
+                    amount: "1/2 tsp",
+                    category: "Spices",
+                    calories: 3, protein: 0.1, carbs: 0.7, fat: 0.1, fiber: 0.3
+                )
+            ]
+            
+            chickenRecipe.instructions = [
+                "Preheat grill to medium-high heat",
+                "Brush chicken with olive oil",
+                "Season with salt and pepper",
+                "Grill 6-8 minutes per side until internal temp reaches 165°F",
+                "Let rest 5 minutes before serving"
+            ]
+            chickenRecipe.tags = ["protein", "healthy", "dinner", "low-carb"]
+            
+            self.recipes = [pancakeRecipe, saladRecipe, chickenRecipe]
+            
+            // Sample planned meals for today with the nutritious recipes
             let today = Date()
             self.plannedMeals = [
                 PlannedMeal(date: today, mealType: .breakfast, recipeID: pancakeRecipe.id),
                 PlannedMeal(date: today, mealType: .lunch, recipeID: saladRecipe.id),
-                PlannedMeal(date: today, mealType: .dinner, customMealName: "Grilled Chicken & Vegetables")
+                PlannedMeal(date: today, mealType: .dinner, recipeID: chickenRecipe.id)
             ]
         }
     }
-    
+
+    // Helper function to create ingredients with nutrition data
+    private func createIngredientWithNutrition(
+        name: String,
+        amount: String,
+        category: String,
+        calories: Double,
+        protein: Double,
+        carbs: Double,
+        fat: Double,
+        fiber: Double,
+        sodium: Double = 0,
+        vitaminC: Double = 0,
+        calcium: Double = 0,
+        iron: Double = 0
+    ) -> Ingredient {
+        var ingredient = Ingredient(name: name, amount: amount, category: category)
+        
+        // Create nutrition data per 100g equivalent
+        ingredient.nutritionData = NutritionData(
+            calories: calories,
+            protein: protein,
+            carbs: carbs,
+            fat: fat,
+            fiber: fiber,
+            sugar: 0, // You can add this parameter if needed
+            sodium: sodium,
+            vitaminC: vitaminC,
+            calcium: calcium,
+            iron: iron
+        )
+        
+        return ingredient
+    }
     // MARK: - Recipe Management
     
     func addRecipe(_ recipe: Recipe) {
