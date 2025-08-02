@@ -24,15 +24,13 @@ struct ContentView: View {
             BackgroundView()
             
             VStack(spacing: 0) {
-                // Week Navigation Header
+                
                 VStack(spacing: 12) {
                     HStack {
                         Text(weekTitle)
-                            .font(.system(.title2, design: .serif))
+                            .font(.system(.title2, design: .default))
                             .fontWeight(.semibold)
                             .foregroundColor(.primary)
-                        
-                        Spacer()
                         
                         HStack(spacing: 12) {
                             Button(action: {
@@ -51,12 +49,15 @@ struct ContentView: View {
                                     .foregroundColor(Color("Accent1"))
                             }
                         }
+                        .padding(.leading, 8)
+                        
+                        Spacer()
                         
                         Button("Today") {
                             selectedDate = Date()
                         }
                         .font(.system(size: 12))
-                        .fontWeight(.medium)
+                     //   .fontWeight(.medium)
                         .foregroundColor(Color("Accent1"))
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
@@ -82,8 +83,8 @@ struct ContentView: View {
                             // Date display
                             HStack {
                                 Text(selectedDateString())
-                                    .font(.system(.title3, design: .serif))
-                                    .fontWeight(.bold)
+                                    .font(.system(.title3, design: .default))
+                                  //  .fontWeight(.bold)
                                 Spacer()
                             }
                             .padding(.horizontal, 20)
@@ -342,7 +343,7 @@ struct WeekDayView: View {
             VStack(spacing: 6) {
                 Text(dayLetter)
                     .font(.system(size: 11))
-                    .foregroundColor(.secondary)
+                    .foregroundColor(isSelected ? .white : .secondary)
                     .fontWeight(.medium)
                     .textCase(.uppercase)
                     .tracking(0.5)
