@@ -2,17 +2,29 @@
 //  CalendarGridView.swift
 //  Calendar
 //
-//  Updated with scroll-to-collapse functionality for week view
+//  Updated to support both full calendar and pinned week views
 //
 
 import SwiftUI
+
+// MARK: - Swipe Direction Enum
+enum CalendarSwipeDirection {
+    case next, previous
+    
+    var monthIncrement: Int {
+        switch self {
+        case .next: return 1
+        case .previous: return -1
+        }
+    }
+}
 
 struct CalendarGridView: View {
     let currentMonth: Date
     @Binding var selectedDate: Date
     @Binding var isCollapsed: Bool
     
-    let onMonthChange: (SwipeDirection) -> Void
+    let onMonthChange: (CalendarSwipeDirection) -> Void
     let onDateJump: ((Date) -> Void)?
     
     // State for date picker
@@ -25,7 +37,7 @@ struct CalendarGridView: View {
     private let gridSpacing: CGFloat = 4
     private let horizontalPadding: CGFloat = 16
     
-    init(currentMonth: Date, selectedDate: Binding<Date>, isCollapsed: Binding<Bool>, onMonthChange: @escaping (SwipeDirection) -> Void, onDateJump: ((Date) -> Void)? = nil) {
+    init(currentMonth: Date, selectedDate: Binding<Date>, isCollapsed: Binding<Bool>, onMonthChange: @escaping (CalendarSwipeDirection) -> Void, onDateJump: ((Date) -> Void)? = nil) {
         self.currentMonth = currentMonth
         self._selectedDate = selectedDate
         self._isCollapsed = isCollapsed
@@ -45,6 +57,7 @@ struct CalendarGridView: View {
         (id: 6, letter: "S")  // Saturday
     ]
     
+    // Legacy SwipeDirection for compatibility
     enum SwipeDirection {
         case next, previous
         

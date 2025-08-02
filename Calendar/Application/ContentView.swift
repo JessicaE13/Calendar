@@ -1,6 +1,6 @@
 //
 //  Updated ContentView.swift
-//  Simple progressive scroll-based calendar collapse
+//  Calendar completely outside ScrollView with proper pinning
 //
 
 import SwiftUI
@@ -18,29 +18,13 @@ struct ContentView: View {
     @State private var showingCloudKitTest = false
     @State private var showingCategoryManagement = false
     
-    // Scroll-to-collapse state
+    // Calendar state management
     @State private var scrollOffset: CGFloat = 0
+    @State private var isCalendarPinned = false
     
-    // Calculate collapse state based on scroll position
-    private var isCalendarCollapsed: Bool {
-        return scrollOffset < -100 // Collapse when scrolled up 100 points
-    }
-    
-    // Calculate progressive collapse amount (0.0 = fully expanded, 1.0 = fully collapsed)
-    private var collapseProgress: CGFloat {
-        let startCollapse: CGFloat = -50  // Start collapsing at 50 points up
-        let fullyCollapsed: CGFloat = -150 // Fully collapsed at 150 points up
-        
-        if scrollOffset > startCollapse {
-            return 0.0 // Not collapsed at all
-        } else if scrollOffset < fullyCollapsed {
-            return 1.0 // Fully collapsed
-        } else {
-            // Progressive collapse between start and end points
-            let progress = (startCollapse - scrollOffset) / (startCollapse - fullyCollapsed)
-            return min(max(progress, 0.0), 1.0)
-        }
-    }
+    // Thresholds for pinning behavior
+    private let pinThreshold: CGFloat = -100 // When to start pinning
+    private let unpinThreshold: CGFloat = -50 // When to unpin when scrolling down
     
     var body: some View {
         ZStack {
@@ -48,7 +32,7 @@ struct ContentView: View {
             
             VStack(spacing: 0) {
                 
-                // Top toolbar - FIXED AT TOP
+                // Top toolbar - ALWAYS FIXED AT TOP
                 HStack {
                     Button(action: {
                         showingCategoryManagement = true
@@ -99,25 +83,57 @@ struct ContentView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 8)
                 .background(Color("Background").opacity(0.95))
-                .zIndex(1000)
+                .zIndex(1002)
                 
-                // EVERYTHING ELSE IS SCROLLABLE
-                ScrollView {
-                    LazyVStack(spacing: 0, pinnedViews: []) {
-                        
-                        // Calendar - SCROLLS AND COLLAPSES PROGRESSIVELY
-                        ProgressiveCalendarView(
-                            currentMonth: currentMonth,
-                            selectedDate: $selectedDate,
-                            collapseProgress: collapseProgress,
-                            onMonthChange: { direction in
-                                handleMonthChange(direction: direction)
-                            },
-                            onDateJump: { date in
-                                handleDateJump(to: date)
+                // Calendar - ALWAYS OUTSIDE SCROLLVIEW
+                if isCalendarPinned {
+                    // Pinned Week Calendar
+                    PinnedWeekCalendarView(
+                        currentMonth: currentMonth,
+                        selectedDate: $selectedDate,
+                        onMonthChange: { direction in
+                            handleMonthChange(direction: direction)
+                        },
+                        onDateJump: { date in
+                            handleDateJump(to: date)
+                        },
+                        onUnpin: {
+                            withAnimation(.easeInOut(duration: 0.3)) {
+                                isCalendarPinned = false
                             }
-                        )
-                        .padding(.top, 12)
+                        }
+                    )
+                    .background(Color("Background").opacity(0.95))
+                    .shadow(color: .black.opacity(0.1), radius: 4, x: 0, y: 2)
+                    .zIndex(1001)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .top).combined(with: .opacity),
+                        removal: .move(edge: .top).combined(with: .opacity)
+                    ))
+                } else {
+                    // Full Calendar
+                    FullCalendarView(
+                        currentMonth: currentMonth,
+                        selectedDate: $selectedDate,
+                        onMonthChange: { direction in
+                            handleMonthChange(direction: direction)
+                        },
+                        onDateJump: { date in
+                            handleDateJump(to: date)
+                        }
+                    )
+                    .padding(.top, 12)
+                    .background(Color("Background").opacity(0.7))
+                    .zIndex(1001)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .bottom).combined(with: .opacity),
+                        removal: .move(edge: .top).combined(with: .opacity)
+                    ))
+                }
+                
+                // SCROLLABLE CONTENT - NO CALENDAR INSIDE
+                ScrollView {
+                    VStack(spacing: 0) {
                         
                         // Selected date display
                         HStack {
@@ -139,7 +155,7 @@ struct ContentView: View {
                                     .padding(.horizontal, 20)
                             }
                             
-                            // Habit Card - show for all dates (past habits are read-only)
+                            // Habit Card - show for all dates
                             HabitCardView(selectedDate: selectedDate)
                                 .padding(.horizontal, 20)
                             
@@ -167,8 +183,7 @@ struct ContentView: View {
                 .coordinateSpace(name: "scroll")
                 .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
                     scrollOffset = value
-                    // Debug output
-                    print("📍 Scroll offset: \(value), collapse progress: \(collapseProgress)")
+                    updatePinnedState()
                 }
             }
         }
@@ -223,9 +238,29 @@ struct ContentView: View {
         }
     }
     
+    // MARK: - Calendar State Management
+    
+    private func updatePinnedState() {
+        let shouldPin: Bool
+        
+        if isCalendarPinned {
+            // Already pinned - check if we should unpin (scrolled down enough)
+            shouldPin = scrollOffset < unpinThreshold
+        } else {
+            // Not pinned - check if we should pin (scrolled up enough)
+            shouldPin = scrollOffset < pinThreshold
+        }
+        
+        if shouldPin != isCalendarPinned {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                isCalendarPinned = shouldPin
+            }
+        }
+    }
+    
     // MARK: - Month Navigation
     
-    private func handleMonthChange(direction: CalendarGridView.SwipeDirection) {
+    private func handleMonthChange(direction: CalendarSwipeDirection) {
         let increment = direction.monthIncrement
         if let newMonth = Calendar.current.date(byAdding: .month, value: increment, to: currentMonth) {
             currentMonth = newMonth
@@ -284,12 +319,11 @@ struct ContentView: View {
     }
 }
 
-// MARK: - Progressive Calendar View
-struct ProgressiveCalendarView: View {
+// MARK: - Full Calendar View (Normal State)
+struct FullCalendarView: View {
     let currentMonth: Date
     @Binding var selectedDate: Date
-    let collapseProgress: CGFloat
-    let onMonthChange: (CalendarGridView.SwipeDirection) -> Void
+    let onMonthChange: (CalendarSwipeDirection) -> Void
     let onDateJump: ((Date) -> Void)?
     
     // State for date picker
@@ -301,16 +335,14 @@ struct ProgressiveCalendarView: View {
     private let gridSpacing: CGFloat = 4
     private let horizontalPadding: CGFloat = 16
     
-    init(currentMonth: Date, selectedDate: Binding<Date>, collapseProgress: CGFloat, onMonthChange: @escaping (CalendarGridView.SwipeDirection) -> Void, onDateJump: ((Date) -> Void)? = nil) {
+    init(currentMonth: Date, selectedDate: Binding<Date>, onMonthChange: @escaping (CalendarSwipeDirection) -> Void, onDateJump: ((Date) -> Void)? = nil) {
         self.currentMonth = currentMonth
         self._selectedDate = selectedDate
-        self.collapseProgress = collapseProgress
         self.onMonthChange = onMonthChange
         self.onDateJump = onDateJump
         self._pickerDate = State(initialValue: currentMonth)
     }
     
-    // Day headers
     private let dayHeaders = [
         (id: 0, letter: "S"), (id: 1, letter: "M"), (id: 2, letter: "T"),
         (id: 3, letter: "W"), (id: 4, letter: "T"), (id: 5, letter: "F"), (id: 6, letter: "S")
@@ -351,18 +383,6 @@ struct ProgressiveCalendarView: View {
         return weeks
     }
     
-    // Get current week for collapsed view
-    private var currentWeek: [Date?] {
-        let selectedWeekIndex = weeks.firstIndex { week in
-            week.contains { date in
-                guard let date = date else { return false }
-                return calendar.isDate(date, equalTo: selectedDate, toGranularity: .day)
-            }
-        } ?? 0
-        
-        return selectedWeekIndex < weeks.count ? weeks[selectedWeekIndex] : []
-    }
-    
     private func goToToday() {
         let today = Date()
         selectedDate = today
@@ -375,7 +395,7 @@ struct ProgressiveCalendarView: View {
     var body: some View {
         VStack(spacing: 0) {
             
-            // Header - scales down as we collapse
+            // Header
             HStack {
                 Button(action: {
                     pickerDate = currentMonth
@@ -387,7 +407,6 @@ struct ProgressiveCalendarView: View {
                         .foregroundColor(.primary)
                 }
                 .buttonStyle(PlainButtonStyle())
-                .scaleEffect(1.0 - (collapseProgress * 0.3)) // Shrink header as we collapse
                 
                 Spacer()
                 
@@ -412,8 +431,6 @@ struct ProgressiveCalendarView: View {
                     }
                     .buttonStyle(PlainButtonStyle())
                     .padding(.horizontal, 4)
-                    .scaleEffect(1.0 - (collapseProgress * 0.5)) // Shrink more aggressively
-                    .opacity(1.0 - collapseProgress) // Fade out completely
                     
                     Button(action: { onMonthChange(.next) }) {
                         Image(systemName: "chevron.right")
@@ -423,10 +440,9 @@ struct ProgressiveCalendarView: View {
                 }
                 .padding(.horizontal, horizontalPadding)
             }
-            .padding(.bottom, 12 * (1.0 - collapseProgress)) // Reduce bottom padding
-            .opacity(1.0 - (collapseProgress * 0.3)) // Slight fade
+            .padding(.bottom, 12)
             
-            // Day headers - fade out as we collapse
+            // Day headers
             HStack {
                 ForEach(dayHeaders, id: \.id) { dayHeader in
                     Text(dayHeader.letter)
@@ -438,62 +454,32 @@ struct ProgressiveCalendarView: View {
                 }
             }
             .padding(.horizontal, horizontalPadding)
-            .padding(.bottom, 6 * (1.0 - collapseProgress))
-            .opacity(1.0 - (collapseProgress * 0.5))
+            .padding(.bottom, 6)
             
-            // Divider - fade out
             Divider()
                 .padding(.horizontal, horizontalPadding)
-                .padding(.bottom, 6 * (1.0 - collapseProgress))
-                .opacity(1.0 - collapseProgress)
+                .padding(.bottom, 6)
             
-            // Calendar grid with progressive collapse
-            Group {
-                if collapseProgress < 0.5 {
-                    // Show full month, progressively hiding rows
-                    LazyVGrid(columns: Array(repeating: GridItem(.fixed(daySize)), count: 7), spacing: gridSpacing) {
-                        ForEach(Array(weeks.enumerated()), id: \.offset) { weekIndex, week in
-                            ForEach(Array(week.enumerated()), id: \.offset) { dayIndex, date in
-                                if let date = date {
-                                    CompactCalendarDayView(
-                                        date: date,
-                                        currentMonth: currentMonth,
-                                        selectedDate: $selectedDate,
-                                        daySize: daySize
-                                    )
-                                    .opacity(getWeekOpacity(weekIndex: weekIndex))
-                                    .scaleEffect(getWeekScale(weekIndex: weekIndex))
-                                } else {
-                                    Color.clear
-                                        .frame(width: daySize, height: daySize)
-                                }
-                            }
+            // Full month grid
+            LazyVGrid(columns: Array(repeating: GridItem(.fixed(daySize)), count: 7), spacing: gridSpacing) {
+                ForEach(Array(weeks.enumerated()), id: \.offset) { weekIndex, week in
+                    ForEach(Array(week.enumerated()), id: \.offset) { dayIndex, date in
+                        if let date = date {
+                            CompactCalendarDayView(
+                                date: date,
+                                currentMonth: currentMonth,
+                                selectedDate: $selectedDate,
+                                daySize: daySize
+                            )
+                        } else {
+                            Color.clear
+                                .frame(width: daySize, height: daySize)
                         }
                     }
-                    .padding(.horizontal, horizontalPadding)
-                } else {
-                    // Show only current week when heavily collapsed
-                    LazyVGrid(columns: Array(repeating: GridItem(.fixed(daySize)), count: 7), spacing: gridSpacing) {
-                        ForEach(Array(currentWeek.enumerated()), id: \.offset) { index, date in
-                            if let date = date {
-                                CompactCalendarDayView(
-                                    date: date,
-                                    currentMonth: currentMonth,
-                                    selectedDate: $selectedDate,
-                                    daySize: daySize
-                                )
-                            } else {
-                                Color.clear
-                                    .frame(width: daySize, height: daySize)
-                            }
-                        }
-                    }
-                    .padding(.horizontal, horizontalPadding)
                 }
             }
-            .animation(.easeInOut(duration: 0.3), value: collapseProgress)
+            .padding(.horizontal, horizontalPadding)
         }
-        .background(Color("Background").opacity(0.7))
         .gesture(
             DragGesture()
                 .onEnded { value in
@@ -508,7 +494,7 @@ struct ProgressiveCalendarView: View {
                 }
         )
         .sheet(isPresented: $showingDatePicker) {
-            // Date picker sheet (same as before)
+            // Date picker sheet
             VStack(spacing: 30) {
                 HStack {
                     Spacer()
@@ -545,51 +531,186 @@ struct ProgressiveCalendarView: View {
             .presentationDetents([.height(400)])
         }
     }
+}
+
+// MARK: - Pinned Week Calendar View (Compact State)
+struct PinnedWeekCalendarView: View {
+    let currentMonth: Date
+    @Binding var selectedDate: Date
+    let onMonthChange: (CalendarSwipeDirection) -> Void
+    let onDateJump: ((Date) -> Void)?
+    let onUnpin: () -> Void
     
-    // Calculate opacity for each week row based on collapse progress
-    private func getWeekOpacity(weekIndex: Int) -> Double {
-        let selectedWeekIndex = weeks.firstIndex { week in
-            week.contains { date in
-                guard let date = date else { return false }
-                return calendar.isDate(date, equalTo: selectedDate, toGranularity: .day)
-            }
-        } ?? 0
+    private let calendar = Calendar.current
+    private let daySize: CGFloat = 32
+    private let horizontalPadding: CGFloat = 16
+    
+    // Get current week containing selected date
+    private var currentWeek: [Date?] {
+        guard let weekInterval = calendar.dateInterval(of: .weekOfYear, for: selectedDate) else {
+            return []
+        }
         
-        // Keep selected week fully visible, fade others based on distance
-        let distance = abs(weekIndex - selectedWeekIndex)
-        let maxDistance = max(selectedWeekIndex, weeks.count - 1 - selectedWeekIndex)
+        var week: [Date?] = []
+        var date = weekInterval.start
         
-        if distance == 0 {
-            return 1.0 // Selected week always visible
+        for _ in 0..<7 {
+            week.append(date)
+            date = calendar.date(byAdding: .day, value: 1, to: date)!
+        }
+        
+        return week
+    }
+    
+    private var weekDateRange: String {
+        guard let firstDate = currentWeek.compactMap({ $0 }).first,
+              let lastDate = currentWeek.compactMap({ $0 }).last else {
+            return ""
+        }
+        
+        let formatter = DateFormatter()
+        
+        // If the week spans different months
+        if !calendar.isDate(firstDate, equalTo: lastDate, toGranularity: .month) {
+            formatter.dateFormat = "MMM d"
+            let firstString = formatter.string(from: firstDate)
+            formatter.dateFormat = "MMM d, yyyy"
+            let lastString = formatter.string(from: lastDate)
+            return "\(firstString) - \(lastString)"
         } else {
-            let fadeAmount = collapseProgress * Double(distance) / Double(max(maxDistance, 1))
-            return 1.0 - min(fadeAmount, 1.0)
+            formatter.dateFormat = "MMM d"
+            let firstString = formatter.string(from: firstDate)
+            let lastDay = calendar.component(.day, from: lastDate)
+            formatter.dateFormat = "yyyy"
+            let year = formatter.string(from: lastDate)
+            return "\(firstString) - \(lastDay), \(year)"
         }
     }
     
-    // Calculate scale for each week row
-    private func getWeekScale(weekIndex: Int) -> Double {
-        let selectedWeekIndex = weeks.firstIndex { week in
-            week.contains { date in
-                guard let date = date else { return false }
-                return calendar.isDate(date, equalTo: selectedDate, toGranularity: .day)
+    var body: some View {
+        VStack(spacing: 8) {
+            // Compact header with week range
+            HStack {
+                Button(action: { onMonthChange(.previous) }) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 16))
+                        .foregroundColor(Color("Accent1"))
+                }
+                
+                Text(weekDateRange)
+                    .font(.system(size: 16))
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+                
+                Spacer()
+                
+                Button("Expand") {
+                    onUnpin()
+                }
+                .font(.system(size: 12))
+                .foregroundColor(Color("Accent1"))
+                
+                Button(action: { onMonthChange(.next) }) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 16))
+                        .foregroundColor(Color("Accent1"))
+                }
             }
-        } ?? 0
-        
-        let distance = abs(weekIndex - selectedWeekIndex)
-        
-        if distance == 0 {
-            return 1.0 // Selected week maintains size
-        } else {
-            let scaleReduction = collapseProgress * 0.3 * Double(distance)
-            return 1.0 - min(scaleReduction, 0.8)
+            .padding(.horizontal, horizontalPadding)
+            
+            // Week view
+            HStack(spacing: 4) {
+                ForEach(Array(currentWeek.enumerated()), id: \.offset) { index, date in
+                    if let date = date {
+                        CompactCalendarDayView(
+                            date: date,
+                            currentMonth: currentMonth,
+                            selectedDate: $selectedDate,
+                            daySize: daySize
+                        )
+                    } else {
+                        Color.clear
+                            .frame(width: daySize, height: daySize)
+                    }
+                }
+            }
+            .padding(.horizontal, horizontalPadding)
         }
+        .padding(.vertical, 8)
+        .gesture(
+            DragGesture()
+                .onEnded { value in
+                    let horizontalSwipeThreshold: CGFloat = 50
+                    if abs(value.translation.width) > horizontalSwipeThreshold && abs(value.translation.height) < 30 {
+                        if value.translation.width > horizontalSwipeThreshold {
+                            onMonthChange(.previous)
+                        } else if value.translation.width < -horizontalSwipeThreshold {
+                            onMonthChange(.next)
+                        }
+                    }
+                }
+        )
     }
 }
 
-// Note: CompactCalendarDayView is already defined in CalendarGridView.swift
+// MARK: - Compact Calendar Day View
+struct CompactCalendarDayView: View {
+    let date: Date
+    let currentMonth: Date
+    @Binding var selectedDate: Date
+    let daySize: CGFloat
+    
+    private let calendar = Calendar.current
+    
+    private var dayString: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d"
+        return formatter.string(from: date)
+    }
+    
+    private var isSelected: Bool {
+        calendar.isDate(date, equalTo: selectedDate, toGranularity: .day)
+    }
+    
+    private var isToday: Bool {
+        calendar.isDateInToday(date)
+    }
+    
+    var body: some View {
+        Button(action: {
+            selectedDate = date
+        }) {
+            ZStack {
+                Circle()
+                    .fill(backgroundColor)
+                    .frame(width: daySize, height: daySize)
+                    .overlay(
+                        Circle()
+                            .stroke(Color("Accent1"), lineWidth: isToday ? 1.0 : 0)
+                    )
+                
+                Text(dayString)
+                    .font(.system(size: 15))
+                    .fontWeight(.medium)
+                    .monospacedDigit()
+                    .foregroundColor(textColor)
+                    .frame(width: daySize - 6)
+                    .multilineTextAlignment(.center)
+            }
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+    
+    private var textColor: Color {
+        return isSelected ? .white :  .primary.opacity(0.7)
+    }
+    
+    private var backgroundColor: Color {
+        return isSelected ? Color("Accent1") : .clear
+    }
+}
 
-// MARK: - Scroll Offset Preference Key
+// MARK: - Preference Keys
 struct ScrollOffsetPreferenceKey: PreferenceKey {
     static var defaultValue: CGFloat = 0
     
