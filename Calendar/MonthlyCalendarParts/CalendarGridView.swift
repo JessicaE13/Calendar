@@ -2,7 +2,7 @@
 //  CalendarGridView.swift
 //  Calendar
 //
-//  Updated with Today button and background removed
+//  Updated with scroll-to-collapse functionality for week view
 //
 
 import SwiftUI
@@ -10,6 +10,7 @@ import SwiftUI
 struct CalendarGridView: View {
     let currentMonth: Date
     @Binding var selectedDate: Date
+    @Binding var isCollapsed: Bool
     
     let onMonthChange: (SwipeDirection) -> Void
     let onDateJump: ((Date) -> Void)?
@@ -24,9 +25,10 @@ struct CalendarGridView: View {
     private let gridSpacing: CGFloat = 4
     private let horizontalPadding: CGFloat = 16
     
-    init(currentMonth: Date, selectedDate: Binding<Date>, onMonthChange: @escaping (SwipeDirection) -> Void, onDateJump: ((Date) -> Void)? = nil) {
+    init(currentMonth: Date, selectedDate: Binding<Date>, isCollapsed: Binding<Bool>, onMonthChange: @escaping (SwipeDirection) -> Void, onDateJump: ((Date) -> Void)? = nil) {
         self.currentMonth = currentMonth
         self._selectedDate = selectedDate
+        self._isCollapsed = isCollapsed
         self.onMonthChange = onMonthChange
         self.onDateJump = onDateJump
         self._pickerDate = State(initialValue: currentMonth)
@@ -89,6 +91,18 @@ struct CalendarGridView: View {
         return weeks
     }
     
+    // Get only the current week when collapsed
+    private var currentWeek: [Date?] {
+        let selectedWeekIndex = weeks.firstIndex { week in
+            week.contains { date in
+                guard let date = date else { return false }
+                return calendar.isDate(date, equalTo: selectedDate, toGranularity: .day)
+            }
+        } ?? 0
+        
+        return selectedWeekIndex < weeks.count ? weeks[selectedWeekIndex] : []
+    }
+    
     private var yearRange: Range<Int> {
         let currentYear = calendar.component(.year, from: Date())
         return (currentYear - 10)..<(currentYear + 10)
@@ -114,6 +128,7 @@ struct CalendarGridView: View {
     var body: some View {
         VStack(spacing: 0) {
             
+            // Header with month/year and navigation
             HStack {
                 Button(action: {
                     pickerDate = currentMonth
@@ -167,7 +182,31 @@ struct CalendarGridView: View {
             }
             .padding(.bottom, 12)
             
+            // Collapse/Expand indicator
+            if isCollapsed {
+                HStack {
+                    Spacer()
+                    Button(action: {
+                        withAnimation(.easeInOut(duration: 0.3)) {
+                            isCollapsed = false
+                        }
+                    }) {
+                        HStack(spacing: 4) {
+                            Text("Show Full Month")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Image(systemName: "chevron.down")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    Spacer()
+                }
+                .padding(.bottom, 8)
+            }
             
+            // Day headers
             HStack {
                 ForEach(dayHeaders, id: \.id) { dayHeader in
                     Text(dayHeader.letter)
@@ -185,37 +224,71 @@ struct CalendarGridView: View {
                 .padding(.horizontal, horizontalPadding)
                 .padding(.bottom, 6)
             
-            // Calendar grid - smaller and more compact
-            LazyVGrid(columns: Array(repeating: GridItem(.fixed(daySize)), count: 7), spacing: gridSpacing) {
-                ForEach(weeks, id: \.self) { week in
-                    ForEach(Array(week.enumerated()), id: \.offset) { index, date in
-                        if let date = date {
-                            CompactCalendarDayView(
-                                date: date,
-                                currentMonth: currentMonth,
-                                selectedDate: $selectedDate,
-                                daySize: daySize
-                            )
-                        } else {
-                            Color.clear
-                                .frame(width: daySize, height: daySize)
+            // Calendar grid - animated between full month and current week
+            Group {
+                if isCollapsed {
+                    // Show only current week
+                    LazyVGrid(columns: Array(repeating: GridItem(.fixed(daySize)), count: 7), spacing: gridSpacing) {
+                        ForEach(Array(currentWeek.enumerated()), id: \.offset) { index, date in
+                            if let date = date {
+                                CompactCalendarDayView(
+                                    date: date,
+                                    currentMonth: currentMonth,
+                                    selectedDate: $selectedDate,
+                                    daySize: daySize
+                                )
+                            } else {
+                                Color.clear
+                                    .frame(width: daySize, height: daySize)
+                            }
                         }
                     }
+                    .padding(.horizontal, horizontalPadding)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .top).combined(with: .opacity),
+                        removal: .move(edge: .bottom).combined(with: .opacity)
+                    ))
+                } else {
+                    // Show full month
+                    LazyVGrid(columns: Array(repeating: GridItem(.fixed(daySize)), count: 7), spacing: gridSpacing) {
+                        ForEach(weeks, id: \.self) { week in
+                            ForEach(Array(week.enumerated()), id: \.offset) { index, date in
+                                if let date = date {
+                                    CompactCalendarDayView(
+                                        date: date,
+                                        currentMonth: currentMonth,
+                                        selectedDate: $selectedDate,
+                                        daySize: daySize
+                                    )
+                                } else {
+                                    Color.clear
+                                        .frame(width: daySize, height: daySize)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, horizontalPadding)
+                    .transition(.asymmetric(
+                        insertion: .move(edge: .bottom).combined(with: .opacity),
+                        removal: .move(edge: .top).combined(with: .opacity)
+                    ))
                 }
             }
-            .padding(.horizontal, horizontalPadding)
+            .offset(y: 0) // Remove drag offset since we're not handling drag here
         }
-       
         .fixedSize(horizontal: true, vertical: false)
         .frame(maxWidth: .infinity)
         .gesture(
             DragGesture()
                 .onEnded { value in
-                    let swipeThreshold: CGFloat = 50
-                    if value.translation.width > swipeThreshold {
-                        onMonthChange(.previous)
-                    } else if value.translation.width < -swipeThreshold {
-                        onMonthChange(.next)
+                    // Handle month navigation swipe (horizontal only)
+                    let horizontalSwipeThreshold: CGFloat = 50
+                    if abs(value.translation.width) > horizontalSwipeThreshold && abs(value.translation.height) < 30 {
+                        if value.translation.width > horizontalSwipeThreshold {
+                            onMonthChange(.previous)
+                        } else if value.translation.width < -horizontalSwipeThreshold {
+                            onMonthChange(.next)
+                        }
                     }
                 }
         )
@@ -314,7 +387,6 @@ struct CalendarGridView: View {
     }
 }
 
-
 struct CompactCalendarDayView: View {
     let date: Date
     let currentMonth: Date
@@ -373,12 +445,14 @@ struct CompactCalendarDayView: View {
 
 #Preview {
     @Previewable @State var selectedDate = Date()
+    @Previewable @State var isCollapsed = false
     ZStack {
         BackgroundView()
         
         CalendarGridView(
             currentMonth: Date(),
             selectedDate: $selectedDate,
+            isCollapsed: $isCollapsed,
             onMonthChange: { direction in
                 print("Month changed: \(direction)")
             },

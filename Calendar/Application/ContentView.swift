@@ -1,6 +1,6 @@
 //
 //  Updated ContentView.swift
-//  Add this to your existing ContentView to integrate the meal planner
+//  Simple progressive scroll-based calendar collapse
 //
 
 import SwiftUI
@@ -14,9 +14,33 @@ struct ContentView: View {
     @StateObject private var categoryManager = CategoryManager.shared
     @StateObject private var routineManager = RoutineManager.shared
     @StateObject private var habitManager = HabitManager.shared
-    @StateObject private var mealManager = MealManager.shared // NEW: Add meal manager
+    @StateObject private var mealManager = MealManager.shared
     @State private var showingCloudKitTest = false
     @State private var showingCategoryManagement = false
+    
+    // Scroll-to-collapse state
+    @State private var scrollOffset: CGFloat = 0
+    
+    // Calculate collapse state based on scroll position
+    private var isCalendarCollapsed: Bool {
+        return scrollOffset < -100 // Collapse when scrolled up 100 points
+    }
+    
+    // Calculate progressive collapse amount (0.0 = fully expanded, 1.0 = fully collapsed)
+    private var collapseProgress: CGFloat {
+        let startCollapse: CGFloat = -50  // Start collapsing at 50 points up
+        let fullyCollapsed: CGFloat = -150 // Fully collapsed at 150 points up
+        
+        if scrollOffset > startCollapse {
+            return 0.0 // Not collapsed at all
+        } else if scrollOffset < fullyCollapsed {
+            return 1.0 // Fully collapsed
+        } else {
+            // Progressive collapse between start and end points
+            let progress = (startCollapse - scrollOffset) / (startCollapse - fullyCollapsed)
+            return min(max(progress, 0.0), 1.0)
+        }
+    }
     
     var body: some View {
         ZStack {
@@ -24,7 +48,7 @@ struct ContentView: View {
             
             VStack(spacing: 0) {
                 
-                // Top toolbar with category management
+                // Top toolbar - FIXED AT TOP
                 HStack {
                     Button(action: {
                         showingCategoryManagement = true
@@ -65,7 +89,7 @@ struct ContentView: View {
                             categoryManager.forceSyncWithCloudKit()
                             routineManager.forceSyncWithCloudKit()
                             habitManager.forceSyncWithCloudKit()
-                            mealManager.forceSyncWithCloudKit() // NEW: Sync meals too
+                            mealManager.forceSyncWithCloudKit()
                         } else {
                             showingCloudKitTest = true
                         }
@@ -73,54 +97,79 @@ struct ContentView: View {
                 }
                 .padding(.horizontal)
                 .padding(.top, 8)
+                .padding(.bottom, 8)
+                .background(Color("Background").opacity(0.95))
+                .zIndex(1000)
                 
-                // Calendar with carousel functionality
-                CalendarGridView(
-                    currentMonth: currentMonth,
-                    selectedDate: $selectedDate,
-                    onMonthChange: { direction in
-                        handleMonthChange(direction: direction)
-                    },
-                    onDateJump: { date in
-                        handleDateJump(to: date)
-                    }
-                )
-                .padding(.top, 12)
-
-                // Selected date display
-                HStack {
-                    Text(selectedDateString())
-                        .font(.system(.title3, design: .serif))
-                        .fontWeight(.bold)
-                        .padding(.horizontal)
-                        .padding(.vertical, 8)
-                    
-                    Spacer()
-                }
-                .padding(.horizontal)
-                
-                // Main content area with scroll
+                // EVERYTHING ELSE IS SCROLLABLE
                 ScrollView {
-                    VStack(spacing: 16) {
-                        // Routine Cards - only show for today or future dates
-                        if !selectedDate.isInPast {
-                            RoutineCardsView(selectedDate: selectedDate)
-                                .padding(.horizontal, 20)
+                    LazyVStack(spacing: 0, pinnedViews: []) {
+                        
+                        // Calendar - SCROLLS AND COLLAPSES PROGRESSIVELY
+                        ProgressiveCalendarView(
+                            currentMonth: currentMonth,
+                            selectedDate: $selectedDate,
+                            collapseProgress: collapseProgress,
+                            onMonthChange: { direction in
+                                handleMonthChange(direction: direction)
+                            },
+                            onDateJump: { date in
+                                handleDateJump(to: date)
+                            }
+                        )
+                        .padding(.top, 12)
+                        
+                        // Selected date display
+                        HStack {
+                            Text(selectedDateString())
+                                .font(.system(.title3, design: .serif))
+                                .fontWeight(.bold)
+                                .padding(.horizontal)
+                                .padding(.vertical, 16)
+                            
+                            Spacer()
                         }
+                        .background(Color("Background").opacity(0.7))
                         
-                        // Habit Card - show for all dates (past habits are read-only)
-                        HabitCardView(selectedDate: selectedDate)
-                            .padding(.horizontal, 20)
-                        
-                        // NEW: Meal Card - show for all dates
-                        MealCardView(selectedDate: selectedDate)
-                            .padding(.horizontal, 20)
-                        
-                        // Items List
-                        ItemListView(itemManager: itemManager, selectedDate: selectedDate)
+                        // Main content cards
+                        VStack(spacing: 16) {
+                            // Routine Cards - only show for today or future dates
+                            if !selectedDate.isInPast {
+                                RoutineCardsView(selectedDate: selectedDate)
+                                    .padding(.horizontal, 20)
+                            }
+                            
+                            // Habit Card - show for all dates (past habits are read-only)
+                            HabitCardView(selectedDate: selectedDate)
+                                .padding(.horizontal, 20)
+                            
+                            // Meal Card - show for all dates
+                            MealCardView(selectedDate: selectedDate)
+                                .padding(.horizontal, 20)
+                            
+                            // Items List
+                            ItemListView(itemManager: itemManager, selectedDate: selectedDate)
+                            
+                            // Extra space at bottom for better scrolling
+                            Color.clear
+                                .frame(height: 200)
+                        }
+                        .background(Color("Background").opacity(0.7))
                     }
+                    .background(
+                        GeometryReader { geometry in
+                            Color.clear
+                                .preference(key: ScrollOffsetPreferenceKey.self,
+                                          value: geometry.frame(in: .named("scroll")).minY)
+                        }
+                    )
                 }
-                .frame(maxHeight: .infinity)
+                .coordinateSpace(name: "scroll")
+                .onPreferenceChange(ScrollOffsetPreferenceKey.self) { value in
+                    scrollOffset = value
+                    // Debug output
+                    print("📍 Scroll offset: \(value), collapse progress: \(collapseProgress)")
+                }
             }
         }
         .sheet(isPresented: $showingCloudKitTest) {
@@ -154,7 +203,6 @@ struct ContentView: View {
         } message: {
             Text(habitManager.errorMessage ?? "An unknown error occurred")
         }
-        // NEW: Add meal manager error handling
         .alert("Meal Sync Error", isPresented: $mealManager.showingError) {
             Button("OK") {
                 mealManager.showingError = false
@@ -167,13 +215,11 @@ struct ContentView: View {
             Text(mealManager.errorMessage ?? "An unknown error occurred")
         }
         .onAppear {
-            // Check CloudKit status when app appears
             cloudKitManager.checkAccountStatus()
-            // Sync all managers
             categoryManager.forceSyncWithCloudKit()
             routineManager.forceSyncWithCloudKit()
             habitManager.forceSyncWithCloudKit()
-            mealManager.forceSyncWithCloudKit() // NEW: Sync meals on app launch
+            mealManager.forceSyncWithCloudKit()
         }
     }
     
@@ -229,23 +275,6 @@ struct ContentView: View {
         }
     }
     
-    private func timeAgoString(from date: Date) -> String {
-        let interval = Date().timeIntervalSince(date)
-        
-        if interval < 60 {
-            return "now"
-        } else if interval < 3600 {
-            let minutes = Int(interval / 60)
-            return "\(minutes)m ago"
-        } else if interval < 86400 {
-            let hours = Int(interval / 3600)
-            return "\(hours)h ago"
-        } else {
-            let days = Int(interval / 86400)
-            return "\(days)d ago"
-        }
-    }
-    
     // MARK: - Helper Methods
     
     private func selectedDateString() -> String {
@@ -255,7 +284,321 @@ struct ContentView: View {
     }
 }
 
-// MARK: - Date Extension for Past Check (unchanged)
+// MARK: - Progressive Calendar View
+struct ProgressiveCalendarView: View {
+    let currentMonth: Date
+    @Binding var selectedDate: Date
+    let collapseProgress: CGFloat
+    let onMonthChange: (CalendarGridView.SwipeDirection) -> Void
+    let onDateJump: ((Date) -> Void)?
+    
+    // State for date picker
+    @State private var showingDatePicker = false
+    @State private var pickerDate: Date
+    
+    private let calendar = Calendar.current
+    private let daySize: CGFloat = 36
+    private let gridSpacing: CGFloat = 4
+    private let horizontalPadding: CGFloat = 16
+    
+    init(currentMonth: Date, selectedDate: Binding<Date>, collapseProgress: CGFloat, onMonthChange: @escaping (CalendarGridView.SwipeDirection) -> Void, onDateJump: ((Date) -> Void)? = nil) {
+        self.currentMonth = currentMonth
+        self._selectedDate = selectedDate
+        self.collapseProgress = collapseProgress
+        self.onMonthChange = onMonthChange
+        self.onDateJump = onDateJump
+        self._pickerDate = State(initialValue: currentMonth)
+    }
+    
+    // Day headers
+    private let dayHeaders = [
+        (id: 0, letter: "S"), (id: 1, letter: "M"), (id: 2, letter: "T"),
+        (id: 3, letter: "W"), (id: 4, letter: "T"), (id: 5, letter: "F"), (id: 6, letter: "S")
+    ]
+    
+    private var monthYearString: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMMM yyyy"
+        return formatter.string(from: currentMonth)
+    }
+    
+    private var weeks: [[Date?]] {
+        guard let monthInterval = calendar.dateInterval(of: .month, for: currentMonth),
+              let monthFirstWeek = calendar.dateInterval(of: .weekOfYear, for: monthInterval.start),
+              let monthLastWeek = calendar.dateInterval(of: .weekOfYear, for: monthInterval.end) else {
+            return []
+        }
+        
+        var weeks: [[Date?]] = []
+        var currentWeek: [Date?] = []
+        
+        let startDate = monthFirstWeek.start
+        let endDate = monthLastWeek.end
+        
+        var date = startDate
+        while date < endDate {
+            let dateToAdd: Date? = calendar.isDate(date, equalTo: currentMonth, toGranularity: .month) ? date : nil
+            currentWeek.append(dateToAdd)
+            
+            if currentWeek.count == 7 {
+                weeks.append(currentWeek)
+                currentWeek = []
+            }
+            
+            date = calendar.date(byAdding: .day, value: 1, to: date)!
+        }
+        
+        return weeks
+    }
+    
+    // Get current week for collapsed view
+    private var currentWeek: [Date?] {
+        let selectedWeekIndex = weeks.firstIndex { week in
+            week.contains { date in
+                guard let date = date else { return false }
+                return calendar.isDate(date, equalTo: selectedDate, toGranularity: .day)
+            }
+        } ?? 0
+        
+        return selectedWeekIndex < weeks.count ? weeks[selectedWeekIndex] : []
+    }
+    
+    private func goToToday() {
+        let today = Date()
+        selectedDate = today
+        
+        if !calendar.isDate(currentMonth, equalTo: today, toGranularity: .month) {
+            onDateJump?(today)
+        }
+    }
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            
+            // Header - scales down as we collapse
+            HStack {
+                Button(action: {
+                    pickerDate = currentMonth
+                    showingDatePicker = true
+                }) {
+                    Text(monthYearString)
+                        .font(.system(.title, design: .serif))
+                        .fontWeight(.semibold)
+                        .foregroundColor(.primary)
+                }
+                .buttonStyle(PlainButtonStyle())
+                .scaleEffect(1.0 - (collapseProgress * 0.3)) // Shrink header as we collapse
+                
+                Spacer()
+                
+                HStack(spacing: 0) {
+                    Button(action: { onMonthChange(.previous) }) {
+                        Image(systemName: "chevron.left")
+                            .font(.title3)
+                            .foregroundColor(Color("Accent1"))
+                    }
+                    
+                    Button(action: goToToday) {
+                        Text("Today")
+                            .font(.system(size: 12))
+                            .fontWeight(.medium)
+                            .foregroundColor(Color("Accent1"))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(Color("Accent1"), lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    .padding(.horizontal, 4)
+                    .scaleEffect(1.0 - (collapseProgress * 0.5)) // Shrink more aggressively
+                    .opacity(1.0 - collapseProgress) // Fade out completely
+                    
+                    Button(action: { onMonthChange(.next) }) {
+                        Image(systemName: "chevron.right")
+                            .font(.title3)
+                            .foregroundColor(Color("Accent1"))
+                    }
+                }
+                .padding(.horizontal, horizontalPadding)
+            }
+            .padding(.bottom, 12 * (1.0 - collapseProgress)) // Reduce bottom padding
+            .opacity(1.0 - (collapseProgress * 0.3)) // Slight fade
+            
+            // Day headers - fade out as we collapse
+            HStack {
+                ForEach(dayHeaders, id: \.id) { dayHeader in
+                    Text(dayHeader.letter)
+                        .font(.system(size: 12))
+                        .fontWeight(.semibold)
+                        .tracking(0.5)
+                        .foregroundColor(.primary.opacity(0.8))
+                        .frame(width: daySize)
+                }
+            }
+            .padding(.horizontal, horizontalPadding)
+            .padding(.bottom, 6 * (1.0 - collapseProgress))
+            .opacity(1.0 - (collapseProgress * 0.5))
+            
+            // Divider - fade out
+            Divider()
+                .padding(.horizontal, horizontalPadding)
+                .padding(.bottom, 6 * (1.0 - collapseProgress))
+                .opacity(1.0 - collapseProgress)
+            
+            // Calendar grid with progressive collapse
+            Group {
+                if collapseProgress < 0.5 {
+                    // Show full month, progressively hiding rows
+                    LazyVGrid(columns: Array(repeating: GridItem(.fixed(daySize)), count: 7), spacing: gridSpacing) {
+                        ForEach(Array(weeks.enumerated()), id: \.offset) { weekIndex, week in
+                            ForEach(Array(week.enumerated()), id: \.offset) { dayIndex, date in
+                                if let date = date {
+                                    CompactCalendarDayView(
+                                        date: date,
+                                        currentMonth: currentMonth,
+                                        selectedDate: $selectedDate,
+                                        daySize: daySize
+                                    )
+                                    .opacity(getWeekOpacity(weekIndex: weekIndex))
+                                    .scaleEffect(getWeekScale(weekIndex: weekIndex))
+                                } else {
+                                    Color.clear
+                                        .frame(width: daySize, height: daySize)
+                                }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, horizontalPadding)
+                } else {
+                    // Show only current week when heavily collapsed
+                    LazyVGrid(columns: Array(repeating: GridItem(.fixed(daySize)), count: 7), spacing: gridSpacing) {
+                        ForEach(Array(currentWeek.enumerated()), id: \.offset) { index, date in
+                            if let date = date {
+                                CompactCalendarDayView(
+                                    date: date,
+                                    currentMonth: currentMonth,
+                                    selectedDate: $selectedDate,
+                                    daySize: daySize
+                                )
+                            } else {
+                                Color.clear
+                                    .frame(width: daySize, height: daySize)
+                            }
+                        }
+                    }
+                    .padding(.horizontal, horizontalPadding)
+                }
+            }
+            .animation(.easeInOut(duration: 0.3), value: collapseProgress)
+        }
+        .background(Color("Background").opacity(0.7))
+        .gesture(
+            DragGesture()
+                .onEnded { value in
+                    let horizontalSwipeThreshold: CGFloat = 50
+                    if abs(value.translation.width) > horizontalSwipeThreshold && abs(value.translation.height) < 30 {
+                        if value.translation.width > horizontalSwipeThreshold {
+                            onMonthChange(.previous)
+                        } else if value.translation.width < -horizontalSwipeThreshold {
+                            onMonthChange(.next)
+                        }
+                    }
+                }
+        )
+        .sheet(isPresented: $showingDatePicker) {
+            // Date picker sheet (same as before)
+            VStack(spacing: 30) {
+                HStack {
+                    Spacer()
+                    Button("✕") { showingDatePicker = false }
+                        .font(.title2)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal, 24)
+                .padding(.top, 24)
+                
+                Text("Jump to Date")
+                    .font(.title2)
+                    .fontWeight(.bold)
+                
+                DatePicker("Select Date", selection: $pickerDate, displayedComponents: .date)
+                    .datePickerStyle(.wheel)
+                    .padding(.horizontal, 20)
+                
+                Button("Go to Date") {
+                    onDateJump?(pickerDate)
+                    showingDatePicker = false
+                }
+                .font(.title3)
+                .fontWeight(.semibold)
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(Color("Accent1"))
+                .cornerRadius(10)
+                .padding(.horizontal, 20)
+                
+                Spacer()
+            }
+            .presentationDetents([.height(400)])
+        }
+    }
+    
+    // Calculate opacity for each week row based on collapse progress
+    private func getWeekOpacity(weekIndex: Int) -> Double {
+        let selectedWeekIndex = weeks.firstIndex { week in
+            week.contains { date in
+                guard let date = date else { return false }
+                return calendar.isDate(date, equalTo: selectedDate, toGranularity: .day)
+            }
+        } ?? 0
+        
+        // Keep selected week fully visible, fade others based on distance
+        let distance = abs(weekIndex - selectedWeekIndex)
+        let maxDistance = max(selectedWeekIndex, weeks.count - 1 - selectedWeekIndex)
+        
+        if distance == 0 {
+            return 1.0 // Selected week always visible
+        } else {
+            let fadeAmount = collapseProgress * Double(distance) / Double(max(maxDistance, 1))
+            return 1.0 - min(fadeAmount, 1.0)
+        }
+    }
+    
+    // Calculate scale for each week row
+    private func getWeekScale(weekIndex: Int) -> Double {
+        let selectedWeekIndex = weeks.firstIndex { week in
+            week.contains { date in
+                guard let date = date else { return false }
+                return calendar.isDate(date, equalTo: selectedDate, toGranularity: .day)
+            }
+        } ?? 0
+        
+        let distance = abs(weekIndex - selectedWeekIndex)
+        
+        if distance == 0 {
+            return 1.0 // Selected week maintains size
+        } else {
+            let scaleReduction = collapseProgress * 0.3 * Double(distance)
+            return 1.0 - min(scaleReduction, 0.8)
+        }
+    }
+}
+
+// Note: CompactCalendarDayView is already defined in CalendarGridView.swift
+
+// MARK: - Scroll Offset Preference Key
+struct ScrollOffsetPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = nextValue()
+    }
+}
+
+// MARK: - Date Extension for Past Check
 extension Date {
     var isInPast: Bool {
         let calendar = Calendar.current
