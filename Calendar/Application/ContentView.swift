@@ -24,77 +24,33 @@ struct ContentView: View {
             BackgroundView()
             
             VStack(spacing: 0) {
-                // Top toolbar
-                HStack {
-                    Button(action: {
-                        showingCategoryManagement = true
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "folder.badge.gearshape")
-                                .font(.system(size: 16))
-                            Text("Categories")
-                                .font(.system(size: 14))
-                        }
-                        .foregroundColor(Color("Accent1"))
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color("Accent1"), lineWidth: 1)
-                                .fill(Color("Accent1").opacity(0.1))
-                        )
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    
-                    Spacer()
-                    
-                    // CloudKit status indicator
-                    HStack(spacing: 4) {
-                        Image(systemName: cloudKitStatusIcon)
-                            .foregroundColor(cloudKitStatusColor)
-                            .font(.caption)
-                        
-                        if itemManager.isLoading || habitManager.isLoading || mealManager.isLoading {
-                            ProgressView()
-                                .scaleEffect(0.6)
-                        }
-                    }
-                    .onTapGesture {
-                        if cloudKitManager.isAccountAvailable {
-                            itemManager.forceSyncWithCloudKit()
-                            categoryManager.forceSyncWithCloudKit()
-                            routineManager.forceSyncWithCloudKit()
-                            habitManager.forceSyncWithCloudKit()
-                            mealManager.forceSyncWithCloudKit()
-                        } else {
-                            showingCloudKitTest = true
-                        }
-                    }
-                }
-                .padding(.horizontal)
-                .padding(.top, 8)
-                .padding(.bottom, 8)
-                .background(Color("Background").opacity(0.95))
-                
                 // Week Navigation Header
                 VStack(spacing: 12) {
                     HStack {
-                        Button(action: {
-                            navigateWeek(.previous)
-                        }) {
-                            Image(systemName: "chevron.left")
-                                .font(.title3)
-                                .foregroundColor(Color("Accent1"))
-                        }
-                        
-                        Spacer()
-                        
                         Text(weekTitle)
                             .font(.system(.title2, design: .serif))
                             .fontWeight(.semibold)
                             .foregroundColor(.primary)
                         
                         Spacer()
+                        
+                        HStack(spacing: 12) {
+                            Button(action: {
+                                navigateWeek(.previous)
+                            }) {
+                                Image(systemName: "chevron.left")
+                                    .font(.title3)
+                                    .foregroundColor(Color("Accent1"))
+                            }
+                            
+                            Button(action: {
+                                navigateWeek(.next)
+                            }) {
+                                Image(systemName: "chevron.right")
+                                    .font(.title3)
+                                    .foregroundColor(Color("Accent1"))
+                            }
+                        }
                         
                         Button("Today") {
                             selectedDate = Date()
@@ -108,16 +64,8 @@ struct ContentView: View {
                             RoundedRectangle(cornerRadius: 6)
                                 .stroke(Color("Accent1"), lineWidth: 1)
                         )
-                        
-                        Button(action: {
-                            navigateWeek(.next)
-                        }) {
-                            Image(systemName: "chevron.right")
-                                .font(.title3)
-                                .foregroundColor(Color("Accent1"))
-                        }
                     }
-                    .padding(.horizontal)
+                    .padding(.horizontal, 32)
                     
                     // Week View
                     WeekCalendarView(selectedDate: $selectedDate)
@@ -254,7 +202,7 @@ struct ContentView: View {
         }
     }
     
-    // MARK: - CloudKit Status Helpers
+    // MARK: - CloudKit Status Helpers (removed from UI but keeping for functionality)
     
     private var cloudKitStatusIcon: String {
         if itemManager.isLoading || habitManager.isLoading || mealManager.isLoading {
