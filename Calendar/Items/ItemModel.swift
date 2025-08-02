@@ -2,7 +2,7 @@
 //  ItemModel.swift
 //  Calendar
 //
-//  Enhanced with recurring task functionality
+//  Enhanced with category support and recurring task functionality
 //
 
 import Foundation
@@ -64,7 +64,7 @@ struct ChecklistItem: Identifiable, Codable {
     }
 }
 
-// MARK: - Item Model (with recurring support)
+// MARK: - Item Model (with category and recurring support)
 
 struct Item: Identifiable, Codable {
     var id = UUID()
@@ -78,6 +78,9 @@ struct Item: Identifiable, Codable {
     var recordID: CKRecord.ID?
     var lastModified: Date = Date()
     
+    // Category support
+    var categoryID: UUID? = nil
+    
     // Recurring task properties
     var recurrencePattern: RecurrencePattern = RecurrencePattern()
     var parentRecurringID: UUID? = nil // Links to the original recurring task
@@ -87,12 +90,13 @@ struct Item: Identifiable, Codable {
     // Track if this item's order has been manually set for this date
     var hasCustomOrderForDate: [String: Bool] = [:] // dateString -> hasCustomOrder
     
-    init(title: String, description: String = "", assignedDate: Date = Date(), assignedTime: Date? = nil, sortOrder: Int = 0) {
+    init(title: String, description: String = "", assignedDate: Date = Date(), assignedTime: Date? = nil, sortOrder: Int = 0, categoryID: UUID? = nil) {
         self.title = title
         self.description = description
         self.assignedDate = Calendar.current.startOfDay(for: assignedDate)
         self.assignedTime = assignedTime
         self.sortOrder = sortOrder
+        self.categoryID = categoryID
         self.lastModified = Date()
     }
     
@@ -122,10 +126,16 @@ struct Item: Identifiable, Codable {
         return formatter.string(from: date)
     }
     
+    @MainActor
+    func getCategory(from categoryManager: CategoryManager) -> Category? {
+        guard let categoryID = categoryID else { return nil }
+        return categoryManager.categories.first { $0.id == categoryID }
+    }
+    
     // Custom coding keys to handle CloudKit fields
     enum CodingKeys: String, CodingKey {
         case id, title, description, isCompleted, assignedDate, assignedTime, sortOrder, checklist, lastModified, hasCustomOrderForDate
-        case recurrencePattern, parentRecurringID, isRecurringParent, occurrenceDate
+        case categoryID, recurrencePattern, parentRecurringID, isRecurringParent, occurrenceDate
         // recordID is not encoded/decoded
     }
 }
@@ -144,6 +154,9 @@ extension Item {
         record["sortOrder"] = sortOrder
         record["lastModified"] = lastModified
         record["userID"] = id.uuidString
+        
+        // Category support
+        record["categoryID"] = categoryID?.uuidString
         
         // Recurring task fields
         record["isRecurringParent"] = isRecurringParent ? 1 : 0
@@ -186,12 +199,19 @@ extension Item {
             return nil
         }
         
+        // Parse category ID
+        var categoryID: UUID? = nil
+        if let categoryIDString = record["categoryID"] as? String {
+            categoryID = UUID(uuidString: categoryIDString)
+        }
+        
         var item = Item(
             title: title,
             description: record["itemDescription"] as? String ?? "",
             assignedDate: assignedDate,
             assignedTime: record["assignedTime"] as? Date,
-            sortOrder: record["sortOrder"] as? Int ?? 0
+            sortOrder: record["sortOrder"] as? Int ?? 0,
+            categoryID: categoryID
         )
         
         let isCompletedValue = record["isCompleted"] as? Int ?? 0
@@ -376,7 +396,7 @@ extension Item {
     }
 }
 
-// MARK: - ItemManager Class (Updated with Recurring Support)
+// MARK: - ItemManager Class (Updated with Category Support)
 @MainActor
 class ItemManager: ObservableObject {
     @Published var items: [Item] = []
@@ -417,24 +437,32 @@ class ItemManager: ObservableObject {
         // Only load sample items if we have no items yet
         guard items.isEmpty else { return }
         
-        // Create a recurring daily standup
+        // Get some sample categories (assuming they exist from CategoryManager)
+        let categoryManager = CategoryManager.shared
+        let workCategory = categoryManager.categories.first { $0.name == "Work" }
+        let personalCategory = categoryManager.categories.first { $0.name == "Personal" }
+        let healthCategory = categoryManager.categories.first { $0.name == "Health" }
+        
+        // Create a recurring daily standup with work category
         var dailyStandup = Item(
             title: "Daily Standup",
             description: "Team standup meeting",
             assignedDate: today,
             assignedTime: calendar.date(bySettingHour: 9, minute: 0, second: 0, of: today),
-            sortOrder: 0
+            sortOrder: 0,
+            categoryID: workCategory?.id
         )
         dailyStandup.recurrencePattern = RecurrencePattern(frequency: .daily, interval: 1)
         dailyStandup.isRecurringParent = true
         
-        // Create a weekly team meeting
+        // Create a weekly team meeting with work category
         var weeklyMeeting = Item(
             title: "Weekly Team Meeting",
             description: "Weekly team sync and planning",
             assignedDate: today,
             assignedTime: calendar.date(bySettingHour: 14, minute: 0, second: 0, of: today),
-            sortOrder: 1
+            sortOrder: 1,
+            categoryID: workCategory?.id
         )
         weeklyMeeting.recurrencePattern = RecurrencePattern(frequency: .weekly, interval: 1)
         weeklyMeeting.isRecurringParent = true
@@ -447,20 +475,23 @@ class ItemManager: ObservableObject {
                 description: "Beginner's yoga session at the local studio",
                 assignedDate: today,
                 assignedTime: calendar.date(bySettingHour: 16, minute: 0, second: 0, of: today),
-                sortOrder: 2
+                sortOrder: 2,
+                categoryID: healthCategory?.id
             ),
             Item(
                 title: "Groceries",
                 description: "Weekly grocery shopping",
                 assignedDate: tomorrow,
-                sortOrder: 3
+                sortOrder: 3,
+                categoryID: personalCategory?.id
             ),
             Item(
                 title: "Doctor Appointment",
                 description: "Annual checkup with Dr. Smith",
                 assignedDate: dayAfterTomorrow,
                 assignedTime: calendar.date(bySettingHour: 14, minute: 30, second: 0, of: dayAfterTomorrow),
-                sortOrder: 4
+                sortOrder: 4,
+                categoryID: healthCategory?.id
             )
         ]
         
@@ -711,7 +742,7 @@ class ItemManager: ObservableObject {
         }
     }
     
-    // MARK: - Item Management Methods
+    // MARK: - Item Management Methods (Updated with Category Support)
     
     func addItem(_ item: Item) {
         var newItem = item
@@ -745,6 +776,95 @@ class ItemManager: ObservableObject {
                 }
             }
         }
+    }
+    
+    // Updated addItem to handle categories
+    func addItemWithCategory(_ item: Item, category: Category?) {
+        var newItem = item
+        newItem.categoryID = category?.id
+        newItem.sortOrder = items.count
+        newItem.lastModified = Date()
+        
+        // Add locally first for immediate UI update
+        items.append(newItem)
+        
+        // If this is a recurring task, generate future instances
+        if newItem.isRecurring {
+            generateRecurringInstances()
+        }
+        
+        // Sync to CloudKit in background
+        Task { [weak self] in
+            guard let self = self else { return }
+            let itemToSave = newItem // Capture the item value
+            
+            do {
+                let savedItem = try await self.cloudKitManager.saveItem(itemToSave)
+                await MainActor.run {
+                    if let index = self.items.firstIndex(where: { $0.id == itemToSave.id }) {
+                        self.items[index] = savedItem
+                    }
+                }
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = "Failed to sync item: \(error.localizedDescription)"
+                    self.showingError = true
+                }
+            }
+        }
+    }
+    
+    func updateItemCategory(_ item: Item, category: Category?) {
+        if let index = items.firstIndex(where: { $0.id == item.id }) {
+            items[index].categoryID = category?.id
+            items[index].lastModified = Date()
+            
+            let updatedItem = items[index]
+            
+            // Sync to CloudKit
+            Task { [weak self] in
+                guard let self = self else { return }
+                
+                do {
+                    _ = try await self.cloudKitManager.saveItem(updatedItem)
+                } catch {
+                    await MainActor.run {
+                        self.errorMessage = "Failed to sync item category: \(error.localizedDescription)"
+                        self.showingError = true
+                    }
+                }
+            }
+        }
+    }
+    
+    // Get items by category
+    func items(for category: Category, on date: Date? = nil) -> [Item] {
+        var filteredItems = items.filter { $0.categoryID == category.id }
+        
+        if let date = date {
+            let calendar = Calendar.current
+            let targetDate = calendar.startOfDay(for: date)
+            filteredItems = filteredItems.filter { item in
+                calendar.isDate(item.assignedDate, equalTo: targetDate, toGranularity: .day)
+            }
+        }
+        
+        return filteredItems.sorted { $0.sortOrder < $1.sortOrder }
+    }
+    
+    // Get items without category
+    func itemsWithoutCategory(on date: Date? = nil) -> [Item] {
+        var filteredItems = items.filter { $0.categoryID == nil }
+        
+        if let date = date {
+            let calendar = Calendar.current
+            let targetDate = calendar.startOfDay(for: date)
+            filteredItems = filteredItems.filter { item in
+                calendar.isDate(item.assignedDate, equalTo: targetDate, toGranularity: .day)
+            }
+        }
+        
+        return filteredItems.sorted { $0.sortOrder < $1.sortOrder }
     }
     
     func deleteItem(_ item: Item) {

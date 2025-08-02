@@ -2,8 +2,7 @@
 //  ItemRowView.swift
 //  Calendar
 //
-//  Complete file with Rich Text Editor integration and recurring task support
-//  FIXED VERSION - Improved field editing behavior to prevent double-tap issues
+//  Complete file with Rich Text Editor integration, recurring task support, and category colors
 //
 
 import SwiftUI
@@ -12,6 +11,9 @@ struct ItemRowView: View {
     @ObservedObject var itemManager: ItemManager
     let item: Item
     @State private var showingItemDetails = false
+    
+    // Category manager for getting category info
+    @StateObject private var categoryManager = CategoryManager.shared
     
     private var timeComponents: (time: String, period: String) {
         guard let time = item.assignedTime else { return ("", "") }
@@ -38,11 +40,28 @@ struct ItemRowView: View {
         return item.isRecurringParent || item.isRecurringInstance
     }
     
+    private var categoryColor: Color {
+        if let category = item.getCategory(from: categoryManager) {
+            return category.color.swiftUIColor
+        }
+        return Color.gray.opacity(0.3)
+    }
+    
+    private var hasCategory: Bool {
+        return item.categoryID != nil
+    }
+    
     var body: some View {
         Button(action: {
             showingItemDetails = true
         }) {
             HStack(spacing: 12) {
+                // Category color indicator (replaces the gray circle)
+                Circle()
+                    .fill(categoryColor)
+                    .frame(width: hasCategory ? 8 : 6, height: hasCategory ? 8 : 6)
+                    .opacity(hasCategory ? 1.0 : 0.7)
+                
                 // Checkmark button (only when no time is assigned)
                 if item.assignedTime == nil {
                     Button(action: {
@@ -82,10 +101,14 @@ struct ItemRowView: View {
                         .padding(.vertical, 8)
                         .background(
                             RoundedRectangle(cornerRadius: 12)
-                                .fill(Color("Accent1").opacity(0.3))
+                                .fill(hasCategory ? categoryColor.opacity(0.15) : Color("Accent1").opacity(0.3))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 12)
+                                        .stroke(hasCategory ? categoryColor.opacity(0.3) : Color.clear, lineWidth: hasCategory ? 1 : 0)
+                                )
                         )
                     } else {
-                        // Item without time - no background
+                        // Item without time - no background, but add subtle category accent
                         HStack(spacing: 4) {
                             Text(item.title)
                                 .font(.system(size: 16))
@@ -99,6 +122,15 @@ struct ItemRowView: View {
                                 Image(systemName: "repeat")
                                     .font(.system(size: 11))
                                     .foregroundColor(.secondary)
+                            }
+                            
+                            // Subtle category indicator for non-timed items
+                            if hasCategory {
+                                Rectangle()
+                                    .fill(categoryColor)
+                                    .frame(width: 3, height: 16)
+                                    .cornerRadius(1.5)
+                                    .padding(.leading, 4)
                             }
                         }
                     }
@@ -121,7 +153,7 @@ struct ItemRowView: View {
     }
 }
 
-// MARK: - Read-Only Rich Text Line View
+// MARK: - Read-Only Rich Text Line View (unchanged)
 struct ReadOnlyRichTextLineView: View {
     let line: RichTextLine
     
@@ -146,7 +178,7 @@ struct ReadOnlyRichTextLineView: View {
     }
 }
 
-// MARK: - Checklist Item Row
+// MARK: - Checklist Item Row (unchanged)
 struct ChecklistItemRow: View {
     let checklistItem: ChecklistItem
     let parentItem: Item
@@ -195,4 +227,3 @@ struct ChecklistItemRow: View {
     let itemManager = ItemManager()
     ItemRowView(itemManager: itemManager, item: itemManager.items[0])
 }
-

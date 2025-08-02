@@ -1,24 +1,27 @@
 //
-//  ItemRowView.swift
+//  ItemDetailsView.swift
 //  Calendar
 //
-//  SIMPLIFIED VERSION - Removed section titles and "tap to edit" text
+//  Complete version with category selection support
 //
 
 import SwiftUI
-
-// MARK: - Item Details View with Simplified Interface
 
 struct ItemDetailsView: View {
     let item: Item
     @ObservedObject var itemManager: ItemManager
     @Binding var isPresented: Bool
     
+    // Category manager
+    @StateObject private var categoryManager = CategoryManager.shared
+    @State private var showingCategoryManagement = false
+    
     // Individual field editing states
     @State private var isEditingTitle = false
     @State private var isEditingDescription = false
     @State private var isEditingTime = false
     @State private var isEditingRecurrence = false
+    @State private var isEditingCategory = false
     
     @State private var editedTitle = ""
     @State private var editedDescriptionLines: [RichTextLine] = []
@@ -27,6 +30,7 @@ struct ItemDetailsView: View {
     @State private var showingAddChecklistItem = false
     @State private var newChecklistItemTitle = ""
     @State private var editedChecklist: [ChecklistItem] = []
+    @State private var editedCategory: Category? = nil
     
     // Recurring pattern editing states
     @State private var editedRecurrencePattern = RecurrencePattern()
@@ -92,6 +96,22 @@ struct ItemDetailsView: View {
         return description
     }
     
+    private var categoryDisplayText: String {
+        if isEditingCategory {
+            return editedCategory?.name ?? "None"
+        } else {
+            return item.getCategory(from: categoryManager)?.name ?? "None"
+        }
+    }
+    
+    private var categoryDisplayColor: Color {
+        if isEditingCategory {
+            return editedCategory?.color.swiftUIColor ?? Color.gray
+        } else {
+            return item.getCategory(from: categoryManager)?.color.swiftUIColor ?? Color.gray
+        }
+    }
+    
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
@@ -117,7 +137,7 @@ struct ItemDetailsView: View {
                             .cornerRadius(8)
                         }
                         
-                        // Item Name Section (no title, no "tap to edit")
+                        // Item Name Section
                         if isEditingTitle {
                             HStack(spacing: 12) {
                                 TextField("Item name", text: $editedTitle)
@@ -163,7 +183,72 @@ struct ItemDetailsView: View {
                                 }
                         }
                         
-                        // Description Section (no title, no "tap to edit")
+                        // Category Section
+                        if isEditingCategory {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    Text("Category")
+                                        .font(.headline)
+                                    
+                                    Spacer()
+                                    
+                                    Button("Manage") {
+                                        showingCategoryManagement = true
+                                    }
+                                    .font(.system(size: 14))
+                                    .foregroundColor(Color("Accent1"))
+                                    
+                                    Button(action: saveCategory) {
+                                        Image(systemName: "checkmark")
+                                            .foregroundColor(.green)
+                                            .font(.system(size: 16, weight: .semibold))
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                    
+                                    Button(action: cancelCategoryEdit) {
+                                        Image(systemName: "xmark")
+                                            .foregroundColor(.red)
+                                            .font(.system(size: 16, weight: .semibold))
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                }
+                                
+                                CategoryPickerView(
+                                    selectedCategory: $editedCategory,
+                                    categoryManager: categoryManager
+                                )
+                            }
+                        } else {
+                            HStack {
+                                Image(systemName: "folder")
+                                    .foregroundColor(.secondary)
+                                
+                                HStack(spacing: 8) {
+                                    Circle()
+                                        .fill(categoryDisplayColor)
+                                        .frame(width: 12, height: 12)
+                                        .opacity(item.categoryID != nil ? 1.0 : 0.3)
+                                    
+                                    Text(categoryDisplayText)
+                                        .font(.system(size: 18))
+                                        .foregroundColor(item.categoryID != nil ? .primary : .secondary)
+                                }
+                                
+                                Spacer()
+                            }
+                            .padding(.vertical, 8)
+                            .padding(.horizontal, 12)
+                            .background(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.gray.opacity(0.1))
+                            )
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                startEditingCategory()
+                            }
+                        }
+                        
+                        // Description Section
                         if isEditingDescription {
                             VStack(alignment: .leading, spacing: 12) {
                                 RichTextEditor(
@@ -248,7 +333,7 @@ struct ItemDetailsView: View {
                         }
                         .padding(.vertical, 8)
                         
-                        // Time Section (no title, no "tap to edit")
+                        // Time Section
                         if isEditingTime {
                             VStack(alignment: .leading, spacing: 12) {
                                 HStack(spacing: 8) {
@@ -303,7 +388,7 @@ struct ItemDetailsView: View {
                             }
                         }
                         
-                        // Recurrence Section (only show for non-instances or when editing, no title, no "tap to edit")
+                        // Recurrence Section (only show for non-instances or when editing)
                         if !item.isRecurringInstance {
                             if isEditingRecurrence {
                                 VStack(alignment: .leading, spacing: 12) {
@@ -408,6 +493,12 @@ struct ItemDetailsView: View {
                 isPresented: $showingRecurrenceOptions
             )
         }
+        .sheet(isPresented: $showingCategoryManagement) {
+            CategoryManagementView(
+                categoryManager: categoryManager,
+                isPresented: $showingCategoryManagement
+            )
+        }
     }
     
     // MARK: - Individual Field Editing Methods
@@ -418,6 +509,7 @@ struct ItemDetailsView: View {
         hasTime = item.assignedTime != nil
         editedChecklist = item.checklist
         editedRecurrencePattern = item.recurrencePattern
+        editedCategory = item.getCategory(from: categoryManager)
         
         // Convert description to rich text lines
         if item.description.isEmpty {
@@ -446,6 +538,21 @@ struct ItemDetailsView: View {
         editedTitle = item.title
         isEditingTitle = false
         titleFieldFocused = false
+    }
+    
+    private func startEditingCategory() {
+        editedCategory = item.getCategory(from: categoryManager)
+        isEditingCategory = true
+    }
+    
+    private func saveCategory() {
+        itemManager.updateItemCategory(item, category: editedCategory)
+        isEditingCategory = false
+    }
+    
+    private func cancelCategoryEdit() {
+        editedCategory = item.getCategory(from: categoryManager)
+        isEditingCategory = false
     }
     
     private func startEditingDescription() {

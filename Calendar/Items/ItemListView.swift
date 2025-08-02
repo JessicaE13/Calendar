@@ -277,16 +277,29 @@ struct DraggableItemRow: View {
     }
 }
 
+//
+//  Updated AddItemView with Category Selection
+//  Calendar
+//
+
+import SwiftUI
+
 struct AddItemView: View {
     @ObservedObject var itemManager: ItemManager
     let selectedDate: Date
     @Binding var isPresented: Bool
     let onItemAdded: () -> Void
+    
     @State private var itemTitle = ""
     @State private var hasTime = false
     @State private var selectedTime = Date()
     @State private var recurrencePattern = RecurrencePattern()
     @State private var showingRecurrenceOptions = false
+    @State private var selectedCategory: Category? = nil
+    
+    // Category manager
+    @StateObject private var categoryManager = CategoryManager.shared
+    @State private var showingCategoryManagement = false
     
     private var recurrenceDescription: String {
         if !recurrencePattern.isRecurring {
@@ -311,6 +324,7 @@ struct AddItemView: View {
     var body: some View {
         NavigationView {
             VStack(spacing: 24) {
+                // Item Title Section
                 VStack(alignment: .leading, spacing: 8) {
                     Text("Item Title")
                         .font(.system(size: 16))
@@ -321,6 +335,29 @@ struct AddItemView: View {
                         .font(.system(size: 16))
                 }
                 
+                // Category Selection Section
+                VStack(alignment: .leading, spacing: 12) {
+                    HStack {
+                        Text("Category")
+                            .font(.system(size: 16))
+                            .fontWeight(.medium)
+                        
+                        Spacer()
+                        
+                        Button("Manage") {
+                            showingCategoryManagement = true
+                        }
+                        .font(.system(size: 14))
+                        .foregroundColor(Color("Accent1"))
+                    }
+                    
+                    CategoryPickerView(
+                        selectedCategory: $selectedCategory,
+                        categoryManager: categoryManager
+                    )
+                }
+                
+                // Time Section
                 VStack(alignment: .leading, spacing: 12) {
                     Toggle("Assign Time", isOn: $hasTime)
                         .font(.system(size: 16))
@@ -333,6 +370,7 @@ struct AddItemView: View {
                     }
                 }
                 
+                // Recurrence Section
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Repeat")
                         .font(.system(size: 16))
@@ -365,6 +403,7 @@ struct AddItemView: View {
                 
                 Spacer()
                 
+                // Action Buttons
                 HStack(spacing: 16) {
                     Button("Cancel") {
                         isPresented = false
@@ -378,7 +417,8 @@ struct AddItemView: View {
                             title: itemTitle,
                             assignedDate: selectedDate,
                             assignedTime: hasTime ? selectedTime : nil,
-                            sortOrder: itemManager.items.count
+                            sortOrder: itemManager.items.count,
+                            categoryID: selectedCategory?.id
                         )
                         
                         // Set up recurring pattern if specified
@@ -387,11 +427,19 @@ struct AddItemView: View {
                             newItem.isRecurringParent = true
                         }
                         
-                        itemManager.addItem(newItem)
+                        itemManager.addItemWithCategory(newItem, category: selectedCategory)
                         onItemAdded()
                         isPresented = false
                     }
                     .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(itemTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?
+                                  Color.gray : Color("Accent1"))
+                    )
                     .disabled(itemTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
                 .padding()
@@ -400,17 +448,34 @@ struct AddItemView: View {
             .navigationTitle("New Item")
             .navigationBarTitleDisplayMode(.inline)
         }
-        .presentationDetents([.height(500)])
+        .presentationDetents([.height(650)])
         .sheet(isPresented: $showingRecurrenceOptions) {
             RecurrenceOptionsView(
                 recurrencePattern: $recurrencePattern,
                 isPresented: $showingRecurrenceOptions
             )
         }
+        .sheet(isPresented: $showingCategoryManagement) {
+            CategoryManagementView(
+                categoryManager: categoryManager,
+                isPresented: $showingCategoryManagement
+            )
+        }
+        .onAppear {
+            // Sync categories when the view appears
+            categoryManager.forceSyncWithCloudKit()
+        }
     }
 }
 
 #Preview {
+    @Previewable @State var isPresented = true
     let itemManager = ItemManager()
-    ItemListView(itemManager: itemManager, selectedDate: Date())
+    
+    AddItemView(
+        itemManager: itemManager,
+        selectedDate: Date(),
+        isPresented: $isPresented,
+        onItemAdded: {}
+    )
 }
