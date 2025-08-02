@@ -35,7 +35,7 @@ struct ItemListView: View {
             
             // Section header with add button
             HStack {
-                Text("Tasks")
+                Text("Schedule")
                     .font(.system(size: 20))
                     .fontWeight(.semibold)
                     .foregroundColor(.primary)

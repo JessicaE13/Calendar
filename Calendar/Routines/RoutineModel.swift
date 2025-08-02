@@ -37,7 +37,7 @@ enum RoutineType: String, CaseIterable, Codable {
 }
 
 // MARK: - Routine Item
-struct RoutineItem: Identifiable, Codable {
+struct RoutineItem: Identifiable, Codable, Equatable {
     var id = UUID()
     var title: String
     var isCompleted: Bool = false

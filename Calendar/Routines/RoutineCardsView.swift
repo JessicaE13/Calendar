@@ -207,6 +207,16 @@ struct RoutineCardView: View {
     }
 }
 
+//
+//  RoutineDetailComponents.swift
+//  Calendar
+//
+//  Broken down components for better maintainability and reusability
+//
+
+import SwiftUI
+
+// MARK: - Main Routine Detail View (Simplified)
 struct RoutineDetailView: View {
     let progress: DailyRoutineProgress
     @ObservedObject var routineManager: RoutineManager
@@ -215,94 +225,19 @@ struct RoutineDetailView: View {
     @State private var showingTemplateEditor = false
     @State private var items: [RoutineItem] = []
     
-    private var timeInfo: String {
-        if let startTime = progress.startTime, let completionTime = progress.completionTime {
-            let formatter = DateFormatter()
-            formatter.timeStyle = .short
-            let duration = Int(completionTime.timeIntervalSince(startTime) / 60)
-            return "Completed in \(duration) minutes (\(formatter.string(from: startTime)) - \(formatter.string(from: completionTime)))"
-        } else if let startTime = progress.startTime {
-            let formatter = DateFormatter()
-            formatter.timeStyle = .short
-            return "Started at \(formatter.string(from: startTime))"
-        } else {
-            return "Not started yet"
-        }
-    }
-    
     var body: some View {
         NavigationView {
             VStack(spacing: 0) {
-                // Header with progress
-                VStack(spacing: 16) {
-                    HStack {
-                        ZStack {
-                            Circle()
-                                .fill(
-                                    LinearGradient(
-                                        gradient: Gradient(colors: progress.routineType.gradientColors),
-                                        startPoint: .topLeading,
-                                        endPoint: .bottomTrailing
-                                    )
-                                )
-                                .frame(width: 60, height: 60)
-                            
-                            Image(systemName: progress.routineType.icon)
-                                .font(.system(size: 28))
-                                .foregroundColor(.white)
-                        }
-                        
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(progress.routineType.displayName)
-                                .font(.system(size: 24))
-                                .fontWeight(.bold)
-                            
-                            Text(timeInfo)
-                                .font(.system(size: 14))
-                                .foregroundColor(.secondary)
-                        }
-                        
-                        Spacer()
-                    }
-                    
-                    // Progress overview
-                    VStack(spacing: 8) {
-                        HStack {
-                            Text("\(progress.completedItemsCount) of \(progress.totalItemsCount) completed")
-                                .font(.system(size: 16))
-                                .fontWeight(.medium)
-                            
-                            Spacer()
-                            
-                            Text("\(Int(progress.progressPercentage * 100))%")
-                                .font(.system(size: 16))
-                                .fontWeight(.bold)
-                                .foregroundColor(progress.routineType.gradientColors.first)
-                        }
-                        
-                        ProgressView(value: progress.progressPercentage)
-                            .progressViewStyle(LinearProgressViewStyle())
-                            .scaleEffect(x: 1, y: 2, anchor: .center)
-                            .tint(progress.routineType.gradientColors.first)
-                    }
-                }
-                .padding(20)
-                .background(Color.gray.opacity(0.05))
+                // Header with progress overview
+                RoutineDetailHeader(progress: progress)
                 
-                // Simple draggable list using List with onMove
-                List {
-                    ForEach(items, id: \.id) { item in
-                        SimpleRoutineItemRow(
-                            item: item,
-                            progress: progress,
-                            routineManager: routineManager
-                        )
-                    }
-                    .onMove(perform: moveItems)
-                    .listRowInsets(EdgeInsets())
-                }
-                .listStyle(PlainListStyle())
-                .environment(\.editMode, .constant(.active)) // Always enable drag mode
+                // Draggable items list
+                RoutineItemsList(
+                    items: $items,
+                    progress: progress,
+                    routineManager: routineManager,
+                    onItemsReordered: handleItemsReordered
+                )
             }
             .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
@@ -322,9 +257,9 @@ struct RoutineDetailView: View {
             .onAppear {
                 loadItems()
             }
-            .onChange(of: progress.items) { _, _ in
-                loadItems()
-            }
+            .onChange(of: progress.items) {
+                          loadItems()
+                      }
         }
         .sheet(isPresented: $showingTemplateEditor) {
             if let template = routineManager.templates.first(where: { $0.routineType == progress.routineType }) {
@@ -342,6 +277,182 @@ struct RoutineDetailView: View {
         print("📋 Loaded \(items.count) items for routine")
     }
     
+    private func handleItemsReordered(_ reorderedItems: [RoutineItem]) {
+        items = reorderedItems
+        
+        // Update the actual progress data
+        if let progressIndex = routineManager.dailyProgress.firstIndex(where: { $0.id == progress.id }) {
+            for item in items {
+                if let itemIndex = routineManager.dailyProgress[progressIndex].items.firstIndex(where: { $0.id == item.id }) {
+                    routineManager.dailyProgress[progressIndex].items[itemIndex].sortOrder = item.sortOrder
+                }
+            }
+            
+            routineManager.dailyProgress[progressIndex].lastModified = Date()
+            routineManager.objectWillChange.send()
+            
+            // Update template consistency and sync to CloudKit
+            syncChangesToCloudKit()
+        }
+    }
+    
+    private func syncChangesToCloudKit() {
+        guard let progressIndex = routineManager.dailyProgress.firstIndex(where: { $0.id == progress.id }) else { return }
+        
+        let updatedProgress = routineManager.dailyProgress[progressIndex]
+        
+        Task {
+            do {
+                _ = try await CloudKitManager.shared.saveDailyRoutineProgress(updatedProgress)
+                
+                if let template = routineManager.templates.first(where: { $0.routineType == progress.routineType }) {
+                    _ = try await CloudKitManager.shared.saveRoutineTemplate(template)
+                }
+                
+                print("✅ Successfully synced reordered items to CloudKit")
+            } catch {
+                print("❌ Failed to sync to CloudKit: \(error)")
+            }
+        }
+    }
+}
+
+// MARK: - Routine Detail Header Component
+struct RoutineDetailHeader: View {
+    let progress: DailyRoutineProgress
+    
+    private var timeInfo: String {
+        if let startTime = progress.startTime, let completionTime = progress.completionTime {
+            let formatter = DateFormatter()
+            formatter.timeStyle = .short
+            let duration = Int(completionTime.timeIntervalSince(startTime) / 60)
+            return "Completed in \(duration) minutes (\(formatter.string(from: startTime)) - \(formatter.string(from: completionTime)))"
+        } else if let startTime = progress.startTime {
+            let formatter = DateFormatter()
+            formatter.timeStyle = .short
+            return "Started at \(formatter.string(from: startTime))"
+        } else {
+            return "Not started yet"
+        }
+    }
+    
+    var body: some View {
+        VStack(spacing: 16) {
+            // Icon and title
+            RoutineHeaderTitle(
+                routineType: progress.routineType,
+                timeInfo: timeInfo
+            )
+            
+            // Progress overview
+            RoutineProgressOverview(progress: progress)
+        }
+        .padding(20)
+        .background(Color.gray.opacity(0.05))
+    }
+}
+
+// MARK: - Routine Header Title Component
+struct RoutineHeaderTitle: View {
+    let routineType: RoutineType
+    let timeInfo: String
+    
+    var body: some View {
+        HStack {
+            RoutineIconView(
+                routineType: routineType,
+                size: 60
+            )
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(routineType.displayName)
+                    .font(.system(size: 24))
+                    .fontWeight(.bold)
+                
+                Text(timeInfo)
+                    .font(.system(size: 14))
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+        }
+    }
+}
+
+// MARK: - Routine Icon Component (Reusable)
+struct RoutineIconView: View {
+    let routineType: RoutineType
+    let size: CGFloat
+    
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    LinearGradient(
+                        gradient: Gradient(colors: routineType.gradientColors),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: size, height: size)
+            
+            Image(systemName: routineType.icon)
+                .font(.system(size: size * 0.45))
+                .foregroundColor(.white)
+        }
+    }
+}
+
+// MARK: - Routine Progress Overview Component
+struct RoutineProgressOverview: View {
+    let progress: DailyRoutineProgress
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            HStack {
+                Text("\(progress.completedItemsCount) of \(progress.totalItemsCount) completed")
+                    .font(.system(size: 16))
+                    .fontWeight(.medium)
+                
+                Spacer()
+                
+                Text("\(Int(progress.progressPercentage * 100))%")
+                    .font(.system(size: 16))
+                    .fontWeight(.bold)
+                    .foregroundColor(progress.routineType.gradientColors.first)
+            }
+            
+            ProgressView(value: progress.progressPercentage)
+                .progressViewStyle(LinearProgressViewStyle())
+                .scaleEffect(x: 1, y: 2, anchor: .center)
+                .tint(progress.routineType.gradientColors.first)
+        }
+    }
+}
+
+// MARK: - Routine Items List Component
+struct RoutineItemsList: View {
+    @Binding var items: [RoutineItem]
+    let progress: DailyRoutineProgress
+    @ObservedObject var routineManager: RoutineManager
+    let onItemsReordered: ([RoutineItem]) -> Void
+    
+    var body: some View {
+        List {
+            ForEach(items, id: \.id) { item in
+                RoutineItemRowView(
+                    item: item,
+                    progress: progress,
+                    routineManager: routineManager
+                )
+            }
+            .onMove(perform: moveItems)
+            .listRowInsets(EdgeInsets())
+        }
+        .listStyle(PlainListStyle())
+        .environment(\.editMode, .constant(.active)) // Always enable drag mode
+    }
+    
     private func moveItems(from source: IndexSet, to destination: Int) {
         print("🔄 Moving items from \(source) to \(destination)")
         
@@ -354,52 +465,349 @@ struct RoutineDetailView: View {
             print("📝 Updated \(item.title) sortOrder to \(index)")
         }
         
-        // Update the actual progress data
-        if let progressIndex = routineManager.dailyProgress.firstIndex(where: { $0.id == progress.id }) {
-            // Update the items in the progress
-            for item in items {
-                if let itemIndex = routineManager.dailyProgress[progressIndex].items.firstIndex(where: { $0.id == item.id }) {
-                    routineManager.dailyProgress[progressIndex].items[itemIndex].sortOrder = item.sortOrder
+        // Notify parent about the change
+        onItemsReordered(items)
+    }
+}
+
+// MARK: - Routine Item Row Component
+struct RoutineItemRowView: View {
+    let item: RoutineItem
+    let progress: DailyRoutineProgress
+    @ObservedObject var routineManager: RoutineManager
+    
+    @State private var isCompleted: Bool
+    
+    init(item: RoutineItem, progress: DailyRoutineProgress, routineManager: RoutineManager) {
+        self.item = item
+        self.progress = progress
+        self.routineManager = routineManager
+        self._isCompleted = State(initialValue: item.isCompleted)
+    }
+    
+    var body: some View {
+        Button(action: {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isCompleted.toggle()
+            }
+            routineManager.toggleRoutineItem(progress.id, itemID: item.id)
+        }) {
+            HStack(spacing: 16) {
+                // Checkbox
+                RoutineItemCheckbox(
+                    isCompleted: isCompleted,
+                    size: 28
+                )
+                
+                // Content
+                RoutineItemContent(
+                    title: item.title,
+                    estimatedMinutes: item.estimatedMinutes,
+                    isCompleted: isCompleted
+                )
+                
+                Spacer()
+                
+                // Drag indicator (automatically added by List when in edit mode)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
+            .background(Color.clear)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PlainButtonStyle())
+        .onChange(of: item.isCompleted) { oldValue, newValue in
+            if isCompleted != newValue {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isCompleted = newValue
                 }
             }
+        }
+        .onAppear {
+            isCompleted = item.isCompleted
+        }
+    }
+}
+
+// MARK: - Routine Item Checkbox Component
+struct RoutineItemCheckbox: View {
+    let isCompleted: Bool
+    let size: CGFloat
+    
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(isCompleted ? Color.green : Color.gray.opacity(0.2))
+                .frame(width: size, height: size)
+                .scaleEffect(isCompleted ? 1.1 : 1.0)
+                .animation(.easeInOut(duration: 0.2), value: isCompleted)
             
-            routineManager.dailyProgress[progressIndex].lastModified = Date()
-            
-            // Force UI update
-            routineManager.objectWillChange.send()
-            
-            print("✅ Updated routine progress with new order")
-            
-            // Update template as well to maintain consistency
-            if let templateIndex = routineManager.templates.firstIndex(where: { $0.routineType == progress.routineType }) {
-                for item in items {
-                    if let templateItemIndex = routineManager.templates[templateIndex].items.firstIndex(where: { $0.title == item.title }) {
-                        routineManager.templates[templateIndex].items[templateItemIndex].sortOrder = item.sortOrder
-                    }
-                }
-                routineManager.templates[templateIndex].lastModified = Date()
-                print("✅ Updated template with new order")
-            }
-            
-            // Sync to CloudKit
-            let updatedProgress = routineManager.dailyProgress[progressIndex]
-            Task {
-                do {
-                    _ = try await CloudKitManager.shared.saveDailyRoutineProgress(updatedProgress)
-                    
-                    if let template = routineManager.templates.first(where: { $0.routineType == progress.routineType }) {
-                        _ = try await CloudKitManager.shared.saveRoutineTemplate(template)
-                    }
-                    
-                    print("✅ Successfully synced reordered items to CloudKit")
-                } catch {
-                    print("❌ Failed to sync to CloudKit: \(error)")
-                }
+            if isCompleted {
+                Image(systemName: "checkmark")
+                    .font(.system(size: size * 0.5, weight: .bold))
+                    .foregroundColor(.white)
+                    .transition(.scale.combined(with: .opacity))
             }
         }
     }
 }
 
+// MARK: - Routine Item Content Component
+struct RoutineItemContent: View {
+    let title: String
+    let estimatedMinutes: Int
+    let isCompleted: Bool
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.system(size: 16))
+                .fontWeight(.medium)
+                .foregroundColor(isCompleted ? .secondary : .primary)
+                .strikethrough(isCompleted)
+                .animation(.easeInOut(duration: 0.2), value: isCompleted)
+            
+            Text("\(estimatedMinutes) min")
+                .font(.system(size: 12))
+                .foregroundColor(.secondary)
+        }
+    }
+}
+
+// MARK: - Simplified Template Editor Component
+struct RoutineTemplateEditor: View {
+    @State private var template: RoutineTemplate
+    @ObservedObject var routineManager: RoutineManager
+    @Binding var isPresented: Bool
+    
+    @State private var showingAddItem = false
+    
+    init(template: RoutineTemplate, routineManager: RoutineManager, isPresented: Binding<Bool>) {
+        self._template = State(initialValue: template)
+        self.routineManager = routineManager
+        self._isPresented = isPresented
+    }
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 0) {
+                // Header
+                TemplateEditorHeader(template: template)
+                
+                // Items list
+                TemplateItemsList(
+                    template: $template,
+                    routineManager: routineManager
+                )
+            }
+            .navigationTitle("Edit \(template.routineType.displayName)")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        isPresented = false
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    HStack {
+                        EditButton()
+                        
+                        Button(action: {
+                            showingAddItem = true
+                        }) {
+                            Image(systemName: "plus")
+                        }
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showingAddItem) {
+            AddRoutineItemView(
+                template: $template,
+                routineManager: routineManager,
+                isPresented: $showingAddItem
+            )
+        }
+    }
+}
+
+// MARK: - Template Editor Header
+struct TemplateEditorHeader: View {
+    let template: RoutineTemplate
+    
+    private var totalTime: Int {
+        template.items.reduce(0) { $0 + $1.estimatedMinutes }
+    }
+    
+    var body: some View {
+        VStack(spacing: 12) {
+            HStack {
+                RoutineIconView(
+                    routineType: template.routineType,
+                    size: 40
+                )
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(template.routineType.displayName)
+                        .font(.headline)
+                    
+                    Text("\(template.items.count) items • \(totalTime) min total")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                
+                Spacer()
+            }
+        }
+        .padding(16)
+        .background(Color.gray.opacity(0.05))
+    }
+}
+
+// MARK: - Template Items List
+struct TemplateItemsList: View {
+    @Binding var template: RoutineTemplate
+    @ObservedObject var routineManager: RoutineManager
+    
+    var body: some View {
+        List {
+            ForEach(template.items.sorted { $0.sortOrder < $1.sortOrder }) { item in
+                TemplateItemRow(item: item)
+            }
+            .onDelete(perform: deleteItems)
+            .onMove(perform: moveItems)
+        }
+        .listStyle(PlainListStyle())
+    }
+    
+    private func deleteItems(offsets: IndexSet) {
+        for index in offsets {
+            let sortedItems = template.items.sorted { $0.sortOrder < $1.sortOrder }
+            if index < sortedItems.count {
+                let itemToDelete = sortedItems[index]
+                template.items.removeAll { $0.id == itemToDelete.id }
+            }
+        }
+        reorderItems()
+        routineManager.updateTemplate(template)
+    }
+    
+    private func moveItems(from source: IndexSet, to destination: Int) {
+        var sortedItems = template.items.sorted { $0.sortOrder < $1.sortOrder }
+        sortedItems.move(fromOffsets: source, toOffset: destination)
+        
+        // Update the template with reordered items
+        for (index, item) in sortedItems.enumerated() {
+            if let originalIndex = template.items.firstIndex(where: { $0.id == item.id }) {
+                template.items[originalIndex].sortOrder = index
+            }
+        }
+        
+        routineManager.updateTemplate(template)
+    }
+    
+    private func reorderItems() {
+        let sortedItems = template.items.sorted { $0.sortOrder < $1.sortOrder }
+        for (index, item) in sortedItems.enumerated() {
+            if let originalIndex = template.items.firstIndex(where: { $0.id == item.id }) {
+                template.items[originalIndex].sortOrder = index
+            }
+        }
+    }
+}
+
+// MARK: - Template Item Row
+struct TemplateItemRow: View {
+    let item: RoutineItem
+    
+    var body: some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(item.title)
+                    .font(.system(size: 16))
+                
+                Text("\(item.estimatedMinutes) min")
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+// MARK: - Add Routine Item View
+struct AddRoutineItemView: View {
+    @Binding var template: RoutineTemplate
+    @ObservedObject var routineManager: RoutineManager
+    @Binding var isPresented: Bool
+    
+    @State private var newItemTitle = ""
+    @State private var newItemMinutes = 5
+    
+    var body: some View {
+        NavigationView {
+            VStack(spacing: 24) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Item Title")
+                        .font(.headline)
+                    
+                    TextField("e.g., Brush teeth, Exercise", text: $newItemTitle)
+                        .textFieldStyle(RoundedBorderTextFieldStyle())
+                }
+                
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Estimated Time")
+                        .font(.headline)
+                    
+                    HStack {
+                        TextField("Minutes", value: $newItemMinutes, format: .number)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .keyboardType(.numberPad)
+                        
+                        Text("minutes")
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                Spacer()
+                
+                HStack(spacing: 16) {
+                    Button("Cancel") {
+                        isPresented = false
+                    }
+                    .foregroundColor(.secondary)
+                    
+                    Spacer()
+                    
+                    Button("Add Item") {
+                        let newItem = RoutineItem(
+                            title: newItemTitle,
+                            estimatedMinutes: newItemMinutes,
+                            sortOrder: template.items.count
+                        )
+                        template.items.append(newItem)
+                        routineManager.updateTemplate(template)
+                        isPresented = false
+                    }
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 10)
+                    .background(Color("Accent1"))
+                    .cornerRadius(8)
+                    .disabled(newItemTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+            .padding()
+            .navigationTitle("Add Routine Item")
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .presentationDetents([.height(300)])
+    }
+}
 struct SimpleRoutineItemRow: View {
     let item: RoutineItem
     let progress: DailyRoutineProgress
@@ -558,127 +966,7 @@ struct RoutineItemRow: View {
         }
     }
 }
-struct RoutineTemplateEditor: View {
-    @State private var template: RoutineTemplate
-    @ObservedObject var routineManager: RoutineManager
-    @Binding var isPresented: Bool
-    
-    @State private var showingAddItem = false
-    @State private var newItemTitle = ""
-    @State private var newItemMinutes = 5
-    
-    init(template: RoutineTemplate, routineManager: RoutineManager, isPresented: Binding<Bool>) {
-        self._template = State(initialValue: template)
-        self.routineManager = routineManager
-        self._isPresented = isPresented
-    }
-    
-    var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                List {
-                    ForEach(template.items.sorted { $0.sortOrder < $1.sortOrder }) { item in
-                        HStack {
-                            VStack(alignment: .leading, spacing: 4) {
-                                Text(item.title)
-                                    .font(.system(size: 16))
-                                
-                                Text("\(item.estimatedMinutes) min")
-                                    .font(.system(size: 12))
-                                    .foregroundColor(.secondary)
-                            }
-                            
-                            Spacer()
-                        }
-                        .padding(.vertical, 4)
-                    }
-                    .onDelete(perform: deleteItems)
-                    .onMove(perform: moveItems)
-                }
-                .listStyle(PlainListStyle())
-            }
-            .navigationTitle("Edit \(template.routineType.displayName)")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("Cancel") {
-                        isPresented = false
-                    }
-                }
-                
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    HStack {
-                        EditButton()
-                        
-                        Button(action: {
-                            showingAddItem = true
-                        }) {
-                            Image(systemName: "plus")
-                        }
-                    }
-                }
-            }
-        }
-        .alert("Add Routine Item", isPresented: $showingAddItem) {
-            TextField("Item title", text: $newItemTitle)
-            TextField("Minutes", value: $newItemMinutes, format: .number)
-            Button("Add") {
-                if !newItemTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    let newItem = RoutineItem(
-                        title: newItemTitle,
-                        estimatedMinutes: newItemMinutes,
-                        sortOrder: template.items.count
-                    )
-                    template.items.append(newItem)
-                    routineManager.updateTemplate(template)
-                    newItemTitle = ""
-                    newItemMinutes = 5
-                }
-            }
-            Button("Cancel", role: .cancel) {
-                newItemTitle = ""
-                newItemMinutes = 5
-            }
-        } message: {
-            Text("Enter the details for the new routine item")
-        }
-    }
-    
-    private func deleteItems(offsets: IndexSet) {
-        for index in offsets {
-            let sortedItems = template.items.sorted { $0.sortOrder < $1.sortOrder }
-            if index < sortedItems.count {
-                let itemToDelete = sortedItems[index]
-                template.items.removeAll { $0.id == itemToDelete.id }
-            }
-        }
-        reorderItems()
-        routineManager.updateTemplate(template)
-    }
-    
-    private func moveItems(from source: IndexSet, to destination: Int) {
-        var sortedItems = template.items.sorted { $0.sortOrder < $1.sortOrder }
-        sortedItems.move(fromOffsets: source, toOffset: destination)
-        
-        // Update the template with reordered items
-        for (index, item) in sortedItems.enumerated() {
-            if let originalIndex = template.items.firstIndex(where: { $0.id == item.id }) {
-                template.items[originalIndex].sortOrder = index
-            }
-        }
-        
-        routineManager.updateTemplate(template)
-    }
-    
-    private func reorderItems() {
-        let sortedItems = template.items.sorted { $0.sortOrder < $1.sortOrder }
-        for (index, item) in sortedItems.enumerated() {
-            if let originalIndex = template.items.firstIndex(where: { $0.id == item.id }) {
-                template.items[originalIndex].sortOrder = index
-            }
-        }
-    }
-}
+
 
 #Preview {
     @Previewable @State var selectedDate = Date()
