@@ -341,11 +341,16 @@ class RoutineManager: ObservableObject {
     }
     
     // MARK: - Progress Updates
-    
+
+
     func toggleRoutineItem(_ progressID: UUID, itemID: UUID) {
+        // Force UI update with explicit objectWillChange
+        objectWillChange.send()
+        
         if let progressIndex = dailyProgress.firstIndex(where: { $0.id == progressID }),
            let itemIndex = dailyProgress[progressIndex].items.firstIndex(where: { $0.id == itemID }) {
             
+            // Update the completion state
             dailyProgress[progressIndex].items[itemIndex].isCompleted.toggle()
             dailyProgress[progressIndex].lastModified = Date()
             
@@ -366,10 +371,23 @@ class RoutineManager: ObservableObject {
             
             let updatedProgress = dailyProgress[progressIndex]
             
-            // Sync to CloudKit
-            Task {
+            // Force another UI update after the change
+            DispatchQueue.main.async {
+                self.objectWillChange.send()
+            }
+            
+            // Sync to CloudKit in background
+            Task { [weak self] in
+                guard let self = self else { return }
+                
                 do {
-                    _ = try await cloudKitManager.saveDailyRoutineProgress(updatedProgress)
+                    let savedProgress = try await self.cloudKitManager.saveDailyRoutineProgress(updatedProgress)
+                    await MainActor.run {
+                        // Update with the saved version
+                        if let index = self.dailyProgress.firstIndex(where: { $0.id == savedProgress.id }) {
+                            self.dailyProgress[index] = savedProgress
+                        }
+                    }
                 } catch {
                     await MainActor.run {
                         self.errorMessage = "Failed to sync routine progress: \(error.localizedDescription)"
