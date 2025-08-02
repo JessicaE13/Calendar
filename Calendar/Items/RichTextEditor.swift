@@ -65,30 +65,41 @@ struct RichTextEditor: View {
                     
                     // Editable lines
                     ScrollView {
-                        LazyVStack(alignment: .leading, spacing: 4) {
-                            ForEach(lines.indices, id: \.self) { index in
-                                EditableLineView(
-                                    line: $lines[index],
-                                    isSelected: selectedLineIDs.contains(lines[index].id),
-                                    isEditing: editingLineID == lines[index].id,
-                                    editingText: $editingText,
-                                    onTap: {
-                                        handleLineTap(lines[index].id)
-                                    },
-                                    onEdit: {
-                                        startEditing(lines[index].id)
-                                    },
-                                    onSave: { newContent in
-                                        saveLineEdit(index: index, content: newContent)
-                                    },
-                                    onNewLine: {
-                                        createNewLine(after: index)
-                                    },
-                                    onDelete: {
-                                        deleteLine(at: index)
-                                    }
-                                )
+                        VStack(alignment: .leading, spacing: 4) {
+                            LazyVStack(alignment: .leading, spacing: 4) {
+                                ForEach(lines.indices, id: \.self) { index in
+                                    EditableLineView(
+                                        line: $lines[index],
+                                        isSelected: selectedLineIDs.contains(lines[index].id),
+                                        isEditing: editingLineID == lines[index].id,
+                                        editingText: $editingText,
+                                        onTap: {
+                                            handleLineTap(lines[index].id)
+                                        },
+                                        onEdit: {
+                                            startEditing(lines[index].id)
+                                        },
+                                        onSave: { newContent in
+                                            saveLineEdit(index: index, content: newContent)
+                                        },
+                                        onNewLine: {
+                                            createNewLine(after: index)
+                                        },
+                                        onDelete: {
+                                            deleteLine(at: index)
+                                        }
+                                    )
+                                }
                             }
+                            
+                            // Invisible tappable area below all lines
+                            Rectangle()
+                                .fill(Color.clear)
+                                .frame(minHeight: 60)
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    tapBelowLines()
+                                }
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
@@ -111,8 +122,11 @@ struct RichTextEditor: View {
                                 .foregroundColor(.secondary)
                                 .italic()
                         } else {
-                            ForEach(lines) { line in
-                                ReadOnlyLineView(line: line)
+                            ForEach(lines.indices, id: \.self) { index in
+                                ReadOnlyLineView(line: lines[index]) {
+                                    // Toggle checkbox callback
+                                    lines[index].isCompleted.toggle()
+                                }
                             }
                         }
                     }
@@ -245,31 +259,42 @@ struct RichTextEditor: View {
             lines[index].content = editingText
         }
         
-        // Remove empty lines except if it's the only line or the last line with content
-        let nonEmptyLines = lines.enumerated().compactMap { index, line -> RichTextLine? in
+        // More intelligent cleanup that preserves intentional blank lines
+        var cleanedLines: [RichTextLine] = []
+        
+        for (index, line) in lines.enumerated() {
             let trimmedContent = line.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            let isEmpty = trimmedContent.isEmpty
             
-            // Keep the line if:
-            // 1. It has content, OR
-            // 2. It's the only line, OR
-            // 3. It's the last line and there are other lines with content
-            if !trimmedContent.isEmpty {
-                return line
-            } else if lines.count == 1 {
-                return line // Keep single empty line
-            } else if index == lines.count - 1 && lines.dropLast().contains(where: { !$0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
-                return nil // Remove trailing empty line if there's content above
-            } else if index < lines.count - 1 {
-                return nil // Remove empty lines in the middle
+            if !isEmpty {
+                // Always keep lines with content
+                cleanedLines.append(line)
+            } else {
+                // For empty lines, be more selective about what to keep
+                let isLastLine = index == lines.count - 1
+                let hasContentAfter = lines.indices.contains(index + 1) &&
+                                    lines[(index + 1)...].contains { !$0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                let hasContentBefore = index > 0 &&
+                                     lines[0..<index].contains { !$0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+                
+                // Keep empty line if:
+                // 1. It's between content (intentional spacing), OR
+                // 2. It's the first line and there's content after, OR
+                // 3. There's content before and after (paragraph break)
+                if (hasContentBefore && hasContentAfter) ||
+                   (index == 0 && hasContentAfter) ||
+                   (hasContentBefore && !isLastLine && hasContentAfter) {
+                    cleanedLines.append(line)
+                }
+                // Remove trailing empty lines and orphaned empty lines
             }
-            return line
         }
         
         // If all lines are empty, keep just one empty text line
-        if nonEmptyLines.allSatisfy({ $0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+        if cleanedLines.allSatisfy({ $0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
             lines = []
         } else {
-            lines = nonEmptyLines
+            lines = cleanedLines
         }
         
         isEditing = false
@@ -301,7 +326,10 @@ struct RichTextEditor: View {
     }
     
     private func createNewLine(after index: Int) {
-        let newLine = RichTextLine(content: "", type: .text)
+        // Get the formatting type from the current line
+        let currentLineType = lines[index].type
+        
+        let newLine = RichTextLine(content: "", type: currentLineType)
         lines.insert(newLine, at: index + 1)
         
         // Automatically start editing the new line
@@ -312,7 +340,10 @@ struct RichTextEditor: View {
     }
     
     private func addNewLine() {
-        let newLine = RichTextLine(content: "", type: .text)
+        // Get the formatting type from the last line, or default to text
+        let lastLineType = lines.last?.type ?? .text
+        
+        let newLine = RichTextLine(content: "", type: lastLineType)
         lines.append(newLine)
         
         // Automatically start editing the new line
@@ -369,6 +400,42 @@ struct RichTextEditor: View {
             return .text
         }
         return line.type
+    }
+    
+    // MARK: - Tap Below Lines Handler
+    
+    private func tapBelowLines() {
+        // Clear any current selections
+        selectedLineIDs.removeAll()
+        
+        if lines.isEmpty {
+            // If no lines exist, create the first one
+            let newLine = RichTextLine(content: "", type: .text)
+            lines.append(newLine)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                editingLineID = newLine.id
+                editingText = ""
+            }
+        } else {
+            // Check if the last line is empty and not being edited
+            let lastLine = lines.last!
+            if lastLine.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && editingLineID != lastLine.id {
+                // Start editing the existing empty last line
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    editingLineID = lastLine.id
+                    editingText = lastLine.content
+                }
+            } else {
+                // Create a new line at the end with the same format as the last line
+                let lastLineType = lastLine.type
+                let newLine = RichTextLine(content: "", type: lastLineType)
+                lines.append(newLine)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    editingLineID = newLine.id
+                    editingText = ""
+                }
+            }
+        }
     }
 }
 
@@ -434,12 +501,13 @@ struct EditableLineView: View {
                         
                         // Line content - tappable anywhere to edit
                         Button(action: onEdit) {
-                            Text(line.content.isEmpty ? "Tap to edit..." : line.content)
+                            Text(line.content.isEmpty ? "" : line.content)
                                 .font(.system(size: 16))
-                                .foregroundColor(line.content.isEmpty ? .secondary : .primary)
+                                .foregroundColor(line.content.isEmpty ? .clear : .primary)
                                 .italic(line.content.isEmpty)
                                 .strikethrough(line.type == .checkbox && line.isCompleted)
                                 .frame(maxWidth: .infinity, alignment: .leading)
+                                .frame(minHeight: line.content.isEmpty ? 20 : nil) // Maintain tappable area
                                 .contentShape(Rectangle()) // Makes entire area tappable
                         }
                         .buttonStyle(PlainButtonStyle())
@@ -482,13 +550,24 @@ struct EditableLineView: View {
 // MARK: - Read-Only Line View
 struct ReadOnlyLineView: View {
     let line: RichTextLine
+    let onToggleCheckbox: (() -> Void)?
+    
+    init(line: RichTextLine, onToggleCheckbox: (() -> Void)? = nil) {
+        self.line = line
+        self.onToggleCheckbox = onToggleCheckbox
+    }
     
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
             if line.type == .checkbox {
-                Text(line.isCompleted ? "☑" : "☐")
-                    .font(.system(size: 16))
-                    .foregroundColor(line.isCompleted ? .green : .gray)
+                Button(action: {
+                    onToggleCheckbox?()
+                }) {
+                    Text(line.isCompleted ? "☑" : "☐")
+                        .font(.system(size: 16))
+                        .foregroundColor(line.isCompleted ? .green : .gray)
+                }
+                .buttonStyle(PlainButtonStyle())
             } else if line.type == .bullet {
                 Text("•")
                     .font(.system(size: 16))
