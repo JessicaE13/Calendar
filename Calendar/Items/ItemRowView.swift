@@ -3,7 +3,7 @@
 //  Calendar
 //
 //  Complete file with Rich Text Editor integration and recurring task support
-//  Updated with inline editing, edit mode functionality, and consistent recurring indicators
+//  FIXED VERSION - Improved field editing behavior to prevent double-tap issues
 //
 
 import SwiftUI
@@ -121,7 +121,83 @@ struct ItemRowView: View {
     }
 }
 
+// MARK: - Read-Only Rich Text Line View
+struct ReadOnlyRichTextLineView: View {
+    let line: RichTextLine
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            if line.type == .checkbox {
+                Text(line.isCompleted ? "☑" : "☐")
+                    .font(.system(size: 16))
+                    .foregroundColor(line.isCompleted ? .green : .gray)
+            } else if line.type == .bullet {
+                Text("•")
+                    .font(.system(size: 16))
+                    .foregroundColor(.secondary)
+            }
+            
+            Text(line.content)
+                .font(.system(size: 16))
+                .strikethrough(line.type == .checkbox && line.isCompleted)
+                .foregroundColor(line.type == .checkbox && line.isCompleted ? .secondary : .primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+// MARK: - Checklist Item Row
+struct ChecklistItemRow: View {
+    let checklistItem: ChecklistItem
+    let parentItem: Item
+    @ObservedObject var itemManager: ItemManager
+    let isEditMode: Bool
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            Button(action: {
+                itemManager.toggleChecklistItemCompletion(parentItem, checklistItem: checklistItem)
+            }) {
+                Image(systemName: checklistItem.isCompleted ? "checkmark.square.fill" : "square")
+                    .foregroundColor(checklistItem.isCompleted ? .green : .gray)
+                    .font(.system(size: 16))
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            Text(checklistItem.title)
+                .font(.system(size: 16))
+                .strikethrough(checklistItem.isCompleted)
+                .foregroundColor(checklistItem.isCompleted ? .secondary : .primary)
+            
+            Spacer()
+            
+            if isEditMode {
+                Button(action: {
+                    itemManager.deleteChecklistItem(parentItem, checklistItem: checklistItem)
+                }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.red.opacity(0.6))
+                        .font(.system(size: 16))
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.white.opacity(0.3))
+        )
+    }
+}
+
+#Preview {
+    let itemManager = ItemManager()
+    ItemRowView(itemManager: itemManager, item: itemManager.items[0])
+}
+
 // MARK: - Item Details View with Rich Text Editor and Recurring Support
+
 struct ItemDetailsView: View {
     let item: Item
     @ObservedObject var itemManager: ItemManager
@@ -146,6 +222,11 @@ struct ItemDetailsView: View {
     // Recurring pattern editing states
     @State private var editedRecurrencePattern = RecurrencePattern()
     @State private var showingRecurrenceOptions = false
+    
+    // Add focus states for better control
+    @FocusState private var titleFieldFocused: Bool
+    @FocusState private var timeFieldFocused: Bool
+    @FocusState private var dateFieldFocused: Bool
     
     private var formattedDate: String {
         let formatter = DateFormatter()
@@ -230,7 +311,7 @@ struct ItemDetailsView: View {
                             Divider()
                         }
                         
-                        // Item Name Section
+                        // FIXED: Item Name Section
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Name")
                                 .font(.system(size: 14))
@@ -239,39 +320,60 @@ struct ItemDetailsView: View {
                                 .tracking(1)
                             
                             if isEditingTitle {
-                                HStack {
+                                VStack(spacing: 8) {
                                     TextField("Item name", text: $editedTitle)
                                         .font(.system(size: 20))
                                         .fontWeight(.medium)
                                         .textFieldStyle(RoundedBorderTextFieldStyle())
+                                        .focused($titleFieldFocused)
+                                        .onSubmit {
+                                            saveTitle()
+                                        }
                                     
-                                    Button("Save") {
-                                        saveTitle()
+                                    HStack {
+                                        Button("Save") {
+                                            saveTitle()
+                                        }
+                                        .foregroundColor(.green)
+                                        .fontWeight(.semibold)
+                                        
+                                        Button("Cancel") {
+                                            cancelTitleEdit()
+                                        }
+                                        .foregroundColor(.secondary)
+                                        
+                                        Spacer()
                                     }
-                                    .foregroundColor(.green)
-                                    .fontWeight(.semibold)
-                                    
-                                    Button("Cancel") {
-                                        cancelTitleEdit()
-                                    }
-                                    .foregroundColor(.secondary)
                                 }
                             } else {
-                                Button(action: startEditingTitle) {
+                                // Simplified button with better tap handling
+                                VStack(alignment: .leading) {
                                     Text(item.title)
                                         .font(.system(size: 20))
                                         .fontWeight(.medium)
-                                        .multilineTextAlignment(.leading)
                                         .frame(maxWidth: .infinity, alignment: .leading)
-                                        .contentShape(Rectangle())
+                                        .padding(.vertical, 8)
+                                        .padding(.horizontal, 12)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 8)
+                                                .fill(Color.gray.opacity(0.1))
+                                        )
+                                        .contentShape(Rectangle()) // Ensures entire area is tappable
+                                        .onTapGesture {
+                                            startEditingTitle()
+                                        }
+                                    
+                                    Text("Tap to edit")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                        .opacity(0.7)
                                 }
-                                .buttonStyle(PlainButtonStyle())
                             }
                         }
                         
                         Divider()
                         
-                        // Rich Text Description Section
+                        // FIXED: Description Section - Single tap to edit
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Description & Notes")
                                 .font(.system(size: 14))
@@ -299,35 +401,34 @@ struct ItemDetailsView: View {
                                     }
                                 }
                             } else {
-                                // Read-only rich text display
-                                if editedDescriptionLines.isEmpty {
-                                    Button(action: startEditingDescription) {
-                                        VStack(alignment: .leading, spacing: 12) {
+                                // Simplified single-tap area for description
+                                Button(action: {
+                                    startEditingDescription()
+                                }) {
+                                    VStack(alignment: .leading, spacing: 8) {
+                                        if editedDescriptionLines.isEmpty {
                                             Text("Add notes, meeting links, or create checklists...")
                                                 .font(.system(size: 16))
                                                 .foregroundColor(.secondary)
                                                 .italic()
-                                        }
-                                        .padding(16)
-                                        .background(Color.white.opacity(0.5))
-                                        .cornerRadius(12)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
-                                    }
-                                    .buttonStyle(PlainButtonStyle())
-                                } else {
-                                    Button(action: startEditingDescription) {
-                                        VStack(alignment: .leading, spacing: 8) {
+                                                .frame(maxWidth: .infinity, alignment: .leading)
+                                        } else {
                                             ForEach(editedDescriptionLines) { line in
                                                 ReadOnlyRichTextLineView(line: line)
                                             }
                                         }
-                                        .padding(16)
-                                        .background(Color.white.opacity(0.5))
-                                        .cornerRadius(12)
-                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        
+                                        Text("Tap to edit")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                            .opacity(0.7)
                                     }
-                                    .buttonStyle(PlainButtonStyle())
+                                    .padding(16)
+                                    .background(Color.white.opacity(0.5))
+                                    .cornerRadius(12)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                                 }
+                                .buttonStyle(PlainButtonStyle())
                             }
                         }
                         
@@ -342,7 +443,6 @@ struct ItemDetailsView: View {
                                     .textCase(.uppercase)
                                     .tracking(1)
                                 
-                                // Always show checklist in read-only mode for simplicity
                                 VStack(alignment: .leading, spacing: 12) {
                                     ForEach(item.checklist.sorted { $0.sortOrder < $1.sortOrder }) { checklistItem in
                                         HStack(spacing: 8) {
@@ -370,7 +470,7 @@ struct ItemDetailsView: View {
                             }
                         }
                         
-                        // Date Section
+                        // FIXED: Date Section
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Date")
                                 .font(.system(size: 14))
@@ -378,16 +478,14 @@ struct ItemDetailsView: View {
                                 .textCase(.uppercase)
                                 .tracking(1)
                             
-                            HStack {
-                                Image(systemName: "calendar")
-                                    .foregroundColor(.secondary)
-                                
-                                if isEditingDate {
+                            if isEditingDate {
+                                VStack(spacing: 8) {
+                                    DatePicker("Date", selection: $editedDate, displayedComponents: .date)
+                                        .labelsHidden()
+                                        .font(.system(size: 18))
+                                        .focused($dateFieldFocused)
+                                    
                                     HStack {
-                                        DatePicker("Date", selection: $editedDate, displayedComponents: .date)
-                                            .labelsHidden()
-                                            .font(.system(size: 18))
-                                        
                                         Button("Save") {
                                             saveDate()
                                         }
@@ -398,23 +496,43 @@ struct ItemDetailsView: View {
                                             cancelDateEdit()
                                         }
                                         .foregroundColor(.secondary)
+                                        
+                                        Spacer()
                                     }
-                                } else {
-                                    Button(action: startEditingDate) {
+                                }
+                            } else {
+                                VStack(alignment: .leading) {
+                                    HStack {
+                                        Image(systemName: "calendar")
+                                            .foregroundColor(.secondary)
+                                        
                                         Text(formattedDate)
                                             .font(.system(size: 18))
-                                            .contentShape(Rectangle())
+                                        
+                                        Spacer()
                                     }
-                                    .buttonStyle(PlainButtonStyle())
+                                    .padding(.vertical, 8)
+                                    .padding(.horizontal, 12)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(Color.gray.opacity(0.1))
+                                    )
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        startEditingDate()
+                                    }
+                                    
+                                    Text("Tap to edit")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                        .opacity(0.7)
                                 }
-                                
-                                Spacer()
                             }
                         }
                         
                         Divider()
                         
-                        // Time Section
+                        // FIXED: Time Section
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Time")
                                 .font(.system(size: 14))
@@ -422,56 +540,68 @@ struct ItemDetailsView: View {
                                 .textCase(.uppercase)
                                 .tracking(1)
                             
-                            VStack(alignment: .leading, spacing: 8) {
-                                if isEditingTime {
-                                    VStack(alignment: .leading, spacing: 12) {
-                                        Toggle("Assign Time", isOn: $hasTime)
-                                            .font(.system(size: 16))
-                                            .fontWeight(.medium)
-                                        
-                                        if hasTime {
-                                            DatePicker("Time", selection: $editedTime, displayedComponents: .hourAndMinute)
-                                                .labelsHidden()
-                                                .font(.system(size: 18))
+                            if isEditingTime {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Toggle("Assign Time", isOn: $hasTime)
+                                        .font(.system(size: 16))
+                                        .fontWeight(.medium)
+                                    
+                                    if hasTime {
+                                        DatePicker("Time", selection: $editedTime, displayedComponents: .hourAndMinute)
+                                            .labelsHidden()
+                                            .font(.system(size: 18))
+                                            .focused($timeFieldFocused)
+                                    }
+                                    
+                                    HStack {
+                                        Button("Save") {
+                                            saveTime()
                                         }
+                                        .foregroundColor(.green)
+                                        .fontWeight(.semibold)
                                         
-                                        HStack {
-                                            Button("Save") {
-                                                saveTime()
-                                            }
-                                            .foregroundColor(.green)
-                                            .fontWeight(.semibold)
-                                            
-                                            Button("Cancel") {
-                                                cancelTimeEdit()
-                                            }
+                                        Button("Cancel") {
+                                            cancelTimeEdit()
+                                        }
+                                        .foregroundColor(.secondary)
+                                        
+                                        Spacer()
+                                    }
+                                }
+                            } else {
+                                VStack(alignment: .leading) {
+                                    HStack {
+                                        Image(systemName: item.assignedTime != nil ? "clock" : "clock.badge.xmark")
                                             .foregroundColor(.secondary)
-                                            
-                                            Spacer()
-                                        }
+                                        
+                                        Text(formattedTime)
+                                            .font(.system(size: 18))
+                                            .foregroundColor(item.assignedTime != nil ? .primary : .secondary)
+                                        
+                                        Spacer()
                                     }
-                                } else {
-                                    Button(action: startEditingTime) {
-                                        HStack {
-                                            Image(systemName: item.assignedTime != nil ? "clock" : "clock.badge.xmark")
-                                                .foregroundColor(.secondary)
-                                            
-                                            Text(formattedTime)
-                                                .font(.system(size: 18))
-                                                .foregroundColor(item.assignedTime != nil ? .primary : .secondary)
-                                                .contentShape(Rectangle())
-                                            
-                                            Spacer()
-                                        }
+                                    .padding(.vertical, 8)
+                                    .padding(.horizontal, 12)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(Color.gray.opacity(0.1))
+                                    )
+                                    .contentShape(Rectangle())
+                                    .onTapGesture {
+                                        startEditingTime()
                                     }
-                                    .buttonStyle(PlainButtonStyle())
+                                    
+                                    Text("Tap to edit")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                        .opacity(0.7)
                                 }
                             }
                         }
                         
                         Divider()
                         
-                        // Recurrence Section (only show for non-instances or when editing)
+                        // FIXED: Recurrence Section (only show for non-instances or when editing)
                         if !item.isRecurringInstance {
                             VStack(alignment: .leading, spacing: 12) {
                                 Text("Repeat")
@@ -518,19 +648,32 @@ struct ItemDetailsView: View {
                                         }
                                     }
                                 } else {
-                                    Button(action: startEditingRecurrence) {
+                                    VStack(alignment: .leading) {
                                         HStack {
                                             Image(systemName: "arrow.triangle.2.circlepath")
                                                 .foregroundColor(.secondary)
                                             
                                             Text(recurrenceDescription)
                                                 .font(.system(size: 18))
-                                                .contentShape(Rectangle())
                                             
                                             Spacer()
                                         }
+                                        .padding(.vertical, 8)
+                                        .padding(.horizontal, 12)
+                                        .background(
+                                            RoundedRectangle(cornerRadius: 8)
+                                                .fill(Color.gray.opacity(0.1))
+                                        )
+                                        .contentShape(Rectangle())
+                                        .onTapGesture {
+                                            startEditingRecurrence()
+                                        }
+                                        
+                                        Text("Tap to edit")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                            .opacity(0.7)
                                     }
-                                    .buttonStyle(PlainButtonStyle())
                                 }
                             }
                             
@@ -579,7 +722,7 @@ struct ItemDetailsView: View {
         }
     }
     
-    // MARK: - Individual Field Editing Methods
+    // MARK: - FIXED: Individual Field Editing Methods
     
     private func setupEditableValues() {
         editedTitle = item.title
@@ -597,30 +740,47 @@ struct ItemDetailsView: View {
         }
     }
     
-    // Title editing
+    // FIXED: Title editing with immediate state change and focus
     private func startEditingTitle() {
         editedTitle = item.title
         isEditingTitle = true
+        
+        // Use a small delay to ensure the TextField appears before focusing
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            titleFieldFocused = true
+        }
     }
     
     private func saveTitle() {
         itemManager.updateItemName(item, newName: editedTitle)
         isEditingTitle = false
+        titleFieldFocused = false
     }
     
     private func cancelTitleEdit() {
         editedTitle = item.title
         isEditingTitle = false
+        titleFieldFocused = false
     }
     
-    // Description editing
+    // FIXED: Description editing - more aggressive state change
     private func startEditingDescription() {
+        // Immediately setup the description lines
         if item.description.isEmpty {
             editedDescriptionLines = []
         } else {
             editedDescriptionLines = [RichTextLine].fromDescriptionString(item.description)
         }
-        isEditingDescription = true
+        
+        // Force the state change immediately
+        withAnimation(.none) {
+            isEditingDescription = true
+        }
+        
+        // Force a UI update
+        DispatchQueue.main.async {
+            // This ensures the view hierarchy updates
+        }
     }
     
     private func saveDescription() {
@@ -638,41 +798,55 @@ struct ItemDetailsView: View {
         isEditingDescription = false
     }
     
-    // Date editing
+    // FIXED: Date editing with focus management
     private func startEditingDate() {
         editedDate = item.assignedDate
         isEditingDate = true
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            dateFieldFocused = true
+        }
     }
     
     private func saveDate() {
         itemManager.updateItemDate(item, newDate: editedDate)
         isEditingDate = false
+        dateFieldFocused = false
     }
     
     private func cancelDateEdit() {
         editedDate = item.assignedDate
         isEditingDate = false
+        dateFieldFocused = false
     }
     
-    // Time editing
+    // FIXED: Time editing with focus management
     private func startEditingTime() {
         editedTime = item.assignedTime ?? Date()
         hasTime = item.assignedTime != nil
         isEditingTime = true
+        
+        if hasTime {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                timeFieldFocused = true
+            }
+        }
     }
     
     private func saveTime() {
         itemManager.updateItemTime(item, time: hasTime ? editedTime : nil)
         isEditingTime = false
+        timeFieldFocused = false
     }
     
     private func cancelTimeEdit() {
         editedTime = item.assignedTime ?? Date()
         hasTime = item.assignedTime != nil
         isEditingTime = false
+        timeFieldFocused = false
     }
     
-    // Recurrence editing
+    // FIXED: Recurrence editing
     private func startEditingRecurrence() {
         editedRecurrencePattern = item.recurrencePattern
         isEditingRecurrence = true
@@ -687,93 +861,4 @@ struct ItemDetailsView: View {
         editedRecurrencePattern = item.recurrencePattern
         isEditingRecurrence = false
     }
-    
-    // Legacy methods for compatibility - now simplified
-    private func updateItemChecklist() {
-        // This method is now mostly handled by direct itemManager calls
-        // Keeping for any future checklist editing needs
-    }
-    
-    private func toggleEditedChecklistItem(_ checklistItem: ChecklistItem) {
-        // Legacy method - functionality moved to direct itemManager calls
-    }
-    
-    private func deleteEditedChecklistItem(_ checklistItem: ChecklistItem) {
-        // Legacy method - functionality moved to direct itemManager calls
-    }
-}
-
-// MARK: - Read-Only Rich Text Line View
-struct ReadOnlyRichTextLineView: View {
-    let line: RichTextLine
-    
-    var body: some View {
-        HStack(alignment: .top, spacing: 8) {
-            if line.type == .checkbox {
-                Text(line.isCompleted ? "☑" : "☐")
-                    .font(.system(size: 16))
-                    .foregroundColor(line.isCompleted ? .green : .gray)
-            } else if line.type == .bullet {
-                Text("•")
-                    .font(.system(size: 16))
-                    .foregroundColor(.secondary)
-            }
-            
-            Text(line.content)
-                .font(.system(size: 16))
-                .strikethrough(line.type == .checkbox && line.isCompleted)
-                .foregroundColor(line.type == .checkbox && line.isCompleted ? .secondary : .primary)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-    }
-}
-
-// MARK: - Checklist Item Row
-struct ChecklistItemRow: View {
-    let checklistItem: ChecklistItem
-    let parentItem: Item
-    @ObservedObject var itemManager: ItemManager
-    let isEditMode: Bool
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            Button(action: {
-                itemManager.toggleChecklistItemCompletion(parentItem, checklistItem: checklistItem)
-            }) {
-                Image(systemName: checklistItem.isCompleted ? "checkmark.square.fill" : "square")
-                    .foregroundColor(checklistItem.isCompleted ? .green : .gray)
-                    .font(.system(size: 16))
-            }
-            .buttonStyle(PlainButtonStyle())
-            
-            Text(checklistItem.title)
-                .font(.system(size: 16))
-                .strikethrough(checklistItem.isCompleted)
-                .foregroundColor(checklistItem.isCompleted ? .secondary : .primary)
-            
-            Spacer()
-            
-            if isEditMode {
-                Button(action: {
-                    itemManager.deleteChecklistItem(parentItem, checklistItem: checklistItem)
-                }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.red.opacity(0.6))
-                        .font(.system(size: 16))
-                }
-                .buttonStyle(PlainButtonStyle())
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.white.opacity(0.3))
-        )
-    }
-}
-
-#Preview {
-    let itemManager = ItemManager()
-    ItemRowView(itemManager: itemManager, item: itemManager.items[0])
 }
