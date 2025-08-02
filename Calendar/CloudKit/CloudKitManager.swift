@@ -275,7 +275,195 @@ class CloudKitManager: ObservableObject {
             return false
         }
     }
+    
+    
+    //
+    //  CloudKit Extensions for Meal Planner
+    //  Add these extensions to your CloudKitManager.swift file
+    //
+    
 }
+    // MARK: - CloudKit Manager Extensions for Meal Planning
+    extension CloudKitManager {
+        
+        // MARK: - Recipe Operations
+        
+        func saveRecipe(_ recipe: Recipe) async throws -> Recipe {
+            guard isAccountAvailable else {
+                throw CloudKitError.accountNotAvailable
+            }
+            
+            var updatedRecipe = recipe
+            updatedRecipe.lastModified = Date()
+            
+            let record = updatedRecipe.toCKRecord()
+            
+            do {
+                let savedRecord = try await privateDatabase.save(record)
+                updatedRecipe.recordID = savedRecord.recordID
+                return updatedRecipe
+            } catch {
+                throw CloudKitError.saveFailed(error)
+            }
+        }
+        
+        func fetchAllRecipes() async throws -> [Recipe] {
+            guard isAccountAvailable else {
+                throw CloudKitError.accountNotAvailable
+            }
+            
+            let predicate = NSPredicate(value: true)
+            let query = CKQuery(recordType: "Recipe", predicate: predicate)
+            
+            let records = try await privateDatabase.records(matching: query)
+            
+            var recipes: [Recipe] = []
+            for (_, result) in records.matchResults {
+                switch result {
+                case .success(let record):
+                    if let recipe = Recipe.fromCKRecord(record) {
+                        recipes.append(recipe)
+                    }
+                case .failure(let error):
+                    print("Failed to fetch recipe: \(error)")
+                }
+            }
+            
+            return recipes.sorted { $0.name < $1.name }
+        }
+        
+        func deleteRecipe(recordID: CKRecord.ID) async throws {
+            guard isAccountAvailable else {
+                throw CloudKitError.accountNotAvailable
+            }
+            
+            do {
+                _ = try await privateDatabase.deleteRecord(withID: recordID)
+            } catch {
+                throw CloudKitError.deleteFailed(error)
+            }
+        }
+        
+        // MARK: - Planned Meal Operations
+        
+        func savePlannedMeal(_ plannedMeal: PlannedMeal) async throws -> PlannedMeal {
+            guard isAccountAvailable else {
+                throw CloudKitError.accountNotAvailable
+            }
+            
+            var updatedMeal = plannedMeal
+            updatedMeal.lastModified = Date()
+            
+            let record = updatedMeal.toCKRecord()
+            
+            do {
+                let savedRecord = try await privateDatabase.save(record)
+                updatedMeal.recordID = savedRecord.recordID
+                return updatedMeal
+            } catch {
+                throw CloudKitError.saveFailed(error)
+            }
+        }
+        
+        func fetchAllPlannedMeals() async throws -> [PlannedMeal] {
+            guard isAccountAvailable else {
+                throw CloudKitError.accountNotAvailable
+            }
+            
+            let predicate = NSPredicate(value: true)
+            let query = CKQuery(recordType: "PlannedMeal", predicate: predicate)
+            
+            let records = try await privateDatabase.records(matching: query)
+            
+            var plannedMeals: [PlannedMeal] = []
+            for (_, result) in records.matchResults {
+                switch result {
+                case .success(let record):
+                    if let meal = PlannedMeal.fromCKRecord(record) {
+                        plannedMeals.append(meal)
+                    }
+                case .failure(let error):
+                    print("Failed to fetch planned meal: \(error)")
+                }
+            }
+            
+            return plannedMeals
+        }
+        
+        func deletePlannedMeal(recordID: CKRecord.ID) async throws {
+            guard isAccountAvailable else {
+                throw CloudKitError.accountNotAvailable
+            }
+            
+            do {
+                _ = try await privateDatabase.deleteRecord(withID: recordID)
+            } catch {
+                throw CloudKitError.deleteFailed(error)
+            }
+        }
+        
+        // MARK: - Shopping List Operations
+        
+        func saveShoppingListItem(_ item: ShoppingListItem) async throws -> ShoppingListItem {
+            guard isAccountAvailable else {
+                throw CloudKitError.accountNotAvailable
+            }
+            
+            var updatedItem = item
+            updatedItem.lastModified = Date()
+            
+            let record = updatedItem.toCKRecord()
+            
+            do {
+                let savedRecord = try await privateDatabase.save(record)
+                updatedItem.recordID = savedRecord.recordID
+                return updatedItem
+            } catch {
+                throw CloudKitError.saveFailed(error)
+            }
+        }
+        
+        func fetchAllShoppingListItems() async throws -> [ShoppingListItem] {
+            guard isAccountAvailable else {
+                throw CloudKitError.accountNotAvailable
+            }
+            
+            let predicate = NSPredicate(value: true)
+            let query = CKQuery(recordType: "ShoppingListItem", predicate: predicate)
+            
+            let records = try await privateDatabase.records(matching: query)
+            
+            var shoppingItems: [ShoppingListItem] = []
+            for (_, result) in records.matchResults {
+                switch result {
+                case .success(let record):
+                    if let item = ShoppingListItem.fromCKRecord(record) {
+                        shoppingItems.append(item)
+                    }
+                case .failure(let error):
+                    print("Failed to fetch shopping list item: \(error)")
+                }
+            }
+            
+            return shoppingItems
+        }
+        
+        func deleteShoppingListItem(recordID: CKRecord.ID) async throws {
+            guard isAccountAvailable else {
+                throw CloudKitError.accountNotAvailable
+            }
+            
+            do {
+                _ = try await privateDatabase.deleteRecord(withID: recordID)
+            } catch {
+                throw CloudKitError.deleteFailed(error)
+            }
+        }
+    }
+    
+    
+    
+
 
 // MARK: - CloudKit Errors
 

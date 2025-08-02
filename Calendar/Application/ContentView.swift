@@ -1,3 +1,8 @@
+//
+//  Updated ContentView.swift
+//  Add this to your existing ContentView to integrate the meal planner
+//
+
 import SwiftUI
 import CloudKit
 
@@ -8,7 +13,8 @@ struct ContentView: View {
     @StateObject private var cloudKitManager = CloudKitManager.shared
     @StateObject private var categoryManager = CategoryManager.shared
     @StateObject private var routineManager = RoutineManager.shared
-    @StateObject private var habitManager = HabitManager.shared // NEW: Add habit manager
+    @StateObject private var habitManager = HabitManager.shared
+    @StateObject private var mealManager = MealManager.shared // NEW: Add meal manager
     @State private var showingCloudKitTest = false
     @State private var showingCategoryManagement = false
     
@@ -42,13 +48,13 @@ struct ContentView: View {
                     
                     Spacer()
                     
-                    // CloudKit status indicator (optional - keep if you want it)
+                    // CloudKit status indicator
                     HStack(spacing: 4) {
                         Image(systemName: cloudKitStatusIcon)
                             .foregroundColor(cloudKitStatusColor)
                             .font(.caption)
                         
-                        if itemManager.isLoading {
+                        if itemManager.isLoading || habitManager.isLoading || mealManager.isLoading {
                             ProgressView()
                                 .scaleEffect(0.6)
                         }
@@ -58,7 +64,8 @@ struct ContentView: View {
                             itemManager.forceSyncWithCloudKit()
                             categoryManager.forceSyncWithCloudKit()
                             routineManager.forceSyncWithCloudKit()
-                            habitManager.forceSyncWithCloudKit() // NEW: Sync habits too
+                            habitManager.forceSyncWithCloudKit()
+                            mealManager.forceSyncWithCloudKit() // NEW: Sync meals too
                         } else {
                             showingCloudKitTest = true
                         }
@@ -101,8 +108,12 @@ struct ContentView: View {
                                 .padding(.horizontal, 20)
                         }
                         
-                        // NEW: Habit Card - show for all dates (past habits are read-only)
+                        // Habit Card - show for all dates (past habits are read-only)
                         HabitCardView(selectedDate: selectedDate)
+                            .padding(.horizontal, 20)
+                        
+                        // NEW: Meal Card - show for all dates
+                        MealCardView(selectedDate: selectedDate)
                             .padding(.horizontal, 20)
                         
                         // Items List
@@ -132,7 +143,6 @@ struct ContentView: View {
         } message: {
             Text(itemManager.errorMessage ?? "An unknown error occurred")
         }
-        // NEW: Add habit manager error handling
         .alert("Habit Sync Error", isPresented: $habitManager.showingError) {
             Button("OK") {
                 habitManager.showingError = false
@@ -144,13 +154,26 @@ struct ContentView: View {
         } message: {
             Text(habitManager.errorMessage ?? "An unknown error occurred")
         }
+        // NEW: Add meal manager error handling
+        .alert("Meal Sync Error", isPresented: $mealManager.showingError) {
+            Button("OK") {
+                mealManager.showingError = false
+            }
+            Button("Retry") {
+                mealManager.forceSyncWithCloudKit()
+                mealManager.showingError = false
+            }
+        } message: {
+            Text(mealManager.errorMessage ?? "An unknown error occurred")
+        }
         .onAppear {
             // Check CloudKit status when app appears
             cloudKitManager.checkAccountStatus()
             // Sync all managers
             categoryManager.forceSyncWithCloudKit()
             routineManager.forceSyncWithCloudKit()
-            habitManager.forceSyncWithCloudKit() // NEW: Sync habits on app launch
+            habitManager.forceSyncWithCloudKit()
+            mealManager.forceSyncWithCloudKit() // NEW: Sync meals on app launch
         }
     }
     
@@ -173,7 +196,7 @@ struct ContentView: View {
     // MARK: - CloudKit Status Helpers
     
     private var cloudKitStatusIcon: String {
-        if itemManager.isLoading || habitManager.isLoading { // NEW: Check habit loading too
+        if itemManager.isLoading || habitManager.isLoading || mealManager.isLoading {
             return "arrow.clockwise"
         }
         
@@ -190,7 +213,7 @@ struct ContentView: View {
     }
     
     private var cloudKitStatusColor: Color {
-        if itemManager.isLoading || habitManager.isLoading { // NEW: Check habit loading too
+        if itemManager.isLoading || habitManager.isLoading || mealManager.isLoading {
             return .blue
         }
         
@@ -232,7 +255,7 @@ struct ContentView: View {
     }
 }
 
-// MARK: - Date Extension for Past Check
+// MARK: - Date Extension for Past Check (unchanged)
 extension Date {
     var isInPast: Bool {
         let calendar = Calendar.current
