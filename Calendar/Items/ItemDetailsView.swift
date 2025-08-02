@@ -17,13 +17,11 @@ struct ItemDetailsView: View {
     // Individual field editing states
     @State private var isEditingTitle = false
     @State private var isEditingDescription = false
-    @State private var isEditingDate = false
     @State private var isEditingTime = false
     @State private var isEditingRecurrence = false
     
     @State private var editedTitle = ""
     @State private var editedDescriptionLines: [RichTextLine] = []
-    @State private var editedDate = Date()
     @State private var editedTime = Date()
     @State private var hasTime = false
     @State private var showingAddChecklistItem = false
@@ -37,12 +35,11 @@ struct ItemDetailsView: View {
     // Add focus states for better control
     @FocusState private var titleFieldFocused: Bool
     @FocusState private var timeFieldFocused: Bool
-    @FocusState private var dateFieldFocused: Bool
     
     private var formattedDate: String {
         let formatter = DateFormatter()
         let calendar = Calendar.current
-        let dateToFormat = isEditingDate ? editedDate : item.assignedDate
+        let dateToFormat = item.assignedDate
         
         if calendar.isDateInToday(dateToFormat) {
             return "Today"
@@ -122,7 +119,7 @@ struct ItemDetailsView: View {
                         
                         // Item Name Section (no title, no "tap to edit")
                         if isEditingTitle {
-                            VStack(spacing: 8) {
+                            HStack(spacing: 12) {
                                 TextField("Item name", text: $editedTitle)
                                     .font(.system(size: 20))
                                     .fontWeight(.medium)
@@ -132,19 +129,21 @@ struct ItemDetailsView: View {
                                         saveTitle()
                                     }
                                 
-                                HStack {
-                                    Button("Save") {
-                                        saveTitle()
+                                // Save/Cancel buttons on the right
+                                HStack(spacing: 8) {
+                                    Button(action: saveTitle) {
+                                        Image(systemName: "checkmark")
+                                            .foregroundColor(.green)
+                                            .font(.system(size: 16, weight: .semibold))
                                     }
-                                    .foregroundColor(.green)
-                                    .fontWeight(.semibold)
+                                    .buttonStyle(PlainButtonStyle())
                                     
-                                    Button("Cancel") {
-                                        cancelTitleEdit()
+                                    Button(action: cancelTitleEdit) {
+                                        Image(systemName: "xmark")
+                                            .foregroundColor(.red)
+                                            .font(.system(size: 16, weight: .semibold))
                                     }
-                                    .foregroundColor(.secondary)
-                                    
-                                    Spacer()
+                                    .buttonStyle(PlainButtonStyle())
                                 }
                             }
                         } else {
@@ -167,22 +166,11 @@ struct ItemDetailsView: View {
                         // Description Section (no title, no "tap to edit")
                         if isEditingDescription {
                             VStack(alignment: .leading, spacing: 12) {
-                                RichTextEditor(lines: $editedDescriptionLines)
-                                
-                                HStack {
-                                    Button("Save") {
-                                        saveDescription()
-                                    }
-                                    .foregroundColor(.green)
-                                    .fontWeight(.semibold)
-                                    
-                                    Button("Cancel") {
-                                        cancelDescriptionEdit()
-                                    }
-                                    .foregroundColor(.secondary)
-                                    
-                                    Spacer()
-                                }
+                                RichTextEditor(
+                                    lines: $editedDescriptionLines,
+                                    onSave: saveDescription,
+                                    onCancel: cancelDescriptionEdit
+                                )
                             }
                         } else {
                             Button(action: {
@@ -235,78 +223,61 @@ struct ItemDetailsView: View {
                             .cornerRadius(12)
                         }
                         
-                        // Date Section (no title, no "tap to edit")
-                        if isEditingDate {
-                            VStack(spacing: 8) {
-                                DatePicker("Date", selection: $editedDate, displayedComponents: .date)
-                                    .labelsHidden()
-                                    .font(.system(size: 18))
-                                    .focused($dateFieldFocused)
-                                
-                                HStack {
-                                    Button("Save") {
-                                        saveDate()
+                        // Date Section - Direct DatePicker
+                        HStack {
+                            Image(systemName: "calendar")
+                                .foregroundColor(.secondary)
+                            
+                            DatePicker(
+                                "",
+                                selection: Binding(
+                                    get: { item.assignedDate },
+                                    set: { newDate in
+                                        itemManager.updateItemDate(item, newDate: newDate)
                                     }
-                                    .foregroundColor(.green)
-                                    .fontWeight(.semibold)
-                                    
-                                    Button("Cancel") {
-                                        cancelDateEdit()
-                                    }
-                                    .foregroundColor(.secondary)
-                                    
-                                    Spacer()
-                                }
-                            }
-                        } else {
-                            HStack {
-                                Image(systemName: "calendar")
-                                    .foregroundColor(.secondary)
-                                
-                                Text(formattedDate)
-                                    .font(.system(size: 18))
-                                
-                                Spacer()
-                            }
-                            .padding(.vertical, 8)
-                            .padding(.horizontal, 12)
-                            .background(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(Color.gray.opacity(0.1))
+                                ),
+                                displayedComponents: .date
                             )
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                startEditingDate()
-                            }
+                            .font(.system(size: 18))
+                            .labelsHidden()
+                            .datePickerStyle(.compact)
+                            .accentColor(.clear)
+                            .colorScheme(.light)
+                            
+                            Spacer()
                         }
+                        .padding(.vertical, 8)
                         
                         // Time Section (no title, no "tap to edit")
                         if isEditingTime {
                             VStack(alignment: .leading, spacing: 12) {
-                                Toggle("Assign Time", isOn: $hasTime)
-                                    .font(.system(size: 16))
-                                    .fontWeight(.medium)
+                                HStack(spacing: 8) {
+                                    Toggle("Assign Time", isOn: $hasTime)
+                                        .font(.system(size: 16))
+                                        .fontWeight(.medium)
+                                    
+                                    Spacer()
+                                    
+                                    Button(action: saveTime) {
+                                        Image(systemName: "checkmark")
+                                            .foregroundColor(.green)
+                                            .font(.system(size: 16, weight: .semibold))
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                    
+                                    Button(action: cancelTimeEdit) {
+                                        Image(systemName: "xmark")
+                                            .foregroundColor(.red)
+                                            .font(.system(size: 16, weight: .semibold))
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                }
                                 
                                 if hasTime {
                                     DatePicker("Time", selection: $editedTime, displayedComponents: .hourAndMinute)
                                         .labelsHidden()
                                         .font(.system(size: 18))
                                         .focused($timeFieldFocused)
-                                }
-                                
-                                HStack {
-                                    Button("Save") {
-                                        saveTime()
-                                    }
-                                    .foregroundColor(.green)
-                                    .fontWeight(.semibold)
-                                    
-                                    Button("Cancel") {
-                                        cancelTimeEdit()
-                                    }
-                                    .foregroundColor(.secondary)
-                                    
-                                    Spacer()
                                 }
                             }
                         } else {
@@ -336,6 +307,24 @@ struct ItemDetailsView: View {
                         if !item.isRecurringInstance {
                             if isEditingRecurrence {
                                 VStack(alignment: .leading, spacing: 12) {
+                                    HStack {
+                                        Spacer()
+                                        
+                                        Button(action: saveRecurrence) {
+                                            Image(systemName: "checkmark")
+                                                .foregroundColor(.green)
+                                                .font(.system(size: 16, weight: .semibold))
+                                        }
+                                        .buttonStyle(PlainButtonStyle())
+                                        
+                                        Button(action: cancelRecurrenceEdit) {
+                                            Image(systemName: "xmark")
+                                                .foregroundColor(.red)
+                                                .font(.system(size: 16, weight: .semibold))
+                                        }
+                                        .buttonStyle(PlainButtonStyle())
+                                    }
+                                    
                                     Button(action: {
                                         showingRecurrenceOptions = true
                                     }) {
@@ -355,21 +344,6 @@ struct ItemDetailsView: View {
                                         }
                                     }
                                     .buttonStyle(PlainButtonStyle())
-                                    
-                                    HStack {
-                                        Button("Save") {
-                                            saveRecurrence()
-                                        }
-                                        .foregroundColor(.green)
-                                        .fontWeight(.semibold)
-                                        
-                                        Button("Cancel") {
-                                            cancelRecurrenceEdit()
-                                        }
-                                        .foregroundColor(.secondary)
-                                        
-                                        Spacer()
-                                    }
                                 }
                             } else {
                                 HStack {
@@ -440,7 +414,6 @@ struct ItemDetailsView: View {
     
     private func setupEditableValues() {
         editedTitle = item.title
-        editedDate = item.assignedDate
         editedTime = item.assignedTime ?? Date()
         hasTime = item.assignedTime != nil
         editedChecklist = item.checklist
@@ -500,27 +473,6 @@ struct ItemDetailsView: View {
             editedDescriptionLines = [RichTextLine].fromDescriptionString(item.description)
         }
         isEditingDescription = false
-    }
-    
-    private func startEditingDate() {
-        editedDate = item.assignedDate
-        isEditingDate = true
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            dateFieldFocused = true
-        }
-    }
-    
-    private func saveDate() {
-        itemManager.updateItemDate(item, newDate: editedDate)
-        isEditingDate = false
-        dateFieldFocused = false
-    }
-    
-    private func cancelDateEdit() {
-        editedDate = item.assignedDate
-        isEditingDate = false
-        dateFieldFocused = false
     }
     
     private func startEditingTime() {

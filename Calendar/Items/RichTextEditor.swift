@@ -48,12 +48,30 @@ struct RichTextLine: Identifiable, Codable {
 }
 
 // MARK: - Rich Text Editor View
+// MARK: - Rich Text Editor View with Save/Cancel Icons
 struct RichTextEditor: View {
     @Binding var lines: [RichTextLine]
+    let onSave: (() -> Void)?
+    let onCancel: (() -> Void)?
+    
     @State private var selectedLineIDs: Set<UUID> = []
     @State private var editingLineID: UUID?
     @State private var editingText: String = ""
     @State private var isEditing: Bool = false
+    
+    // Default initializer for backward compatibility
+    init(lines: Binding<[RichTextLine]>) {
+        self._lines = lines
+        self.onSave = nil
+        self.onCancel = nil
+    }
+    
+    // New initializer with save/cancel callbacks
+    init(lines: Binding<[RichTextLine]>, onSave: @escaping () -> Void, onCancel: @escaping () -> Void) {
+        self._lines = lines
+        self.onSave = onSave
+        self.onCancel = onCancel
+    }
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -154,11 +172,36 @@ struct RichTextEditor: View {
             
             Spacer()
             
-            Button("Done") {
-                saveAndExit()
+            // Use icons if callbacks are provided, otherwise use "Done" text
+            if let onSave = onSave, let onCancel = onCancel {
+                HStack(spacing: 8) {
+                    Button(action: {
+                        saveAndExit()
+                        onSave()
+                    }) {
+                        Image(systemName: "checkmark")
+                            .foregroundColor(.green)
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                    
+                    Button(action: {
+                        cancelAndExit()
+                        onCancel()
+                    }) {
+                        Image(systemName: "xmark")
+                            .foregroundColor(.red)
+                            .font(.system(size: 16, weight: .semibold))
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+            } else {
+                Button("Done") {
+                    saveAndExit()
+                }
+                .fontWeight(.semibold)
+                .foregroundColor(.green)
             }
-            .fontWeight(.semibold)
-            .foregroundColor(.green)
         }
         .font(.caption)
         .padding(.horizontal, 12)
@@ -259,7 +302,7 @@ struct RichTextEditor: View {
             lines[index].content = editingText
         }
         
-        // More intelligent cleanup that preserves intentional blank lines
+        // Clean up empty lines
         var cleanedLines: [RichTextLine] = []
         
         for (index, line) in lines.enumerated() {
@@ -267,36 +310,36 @@ struct RichTextEditor: View {
             let isEmpty = trimmedContent.isEmpty
             
             if !isEmpty {
-                // Always keep lines with content
                 cleanedLines.append(line)
             } else {
-                // For empty lines, be more selective about what to keep
                 let isLastLine = index == lines.count - 1
                 let hasContentAfter = lines.indices.contains(index + 1) &&
                                     lines[(index + 1)...].contains { !$0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
                 let hasContentBefore = index > 0 &&
                                      lines[0..<index].contains { !$0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
                 
-                // Keep empty line if:
-                // 1. It's between content (intentional spacing), OR
-                // 2. It's the first line and there's content after, OR
-                // 3. There's content before and after (paragraph break)
                 if (hasContentBefore && hasContentAfter) ||
                    (index == 0 && hasContentAfter) ||
                    (hasContentBefore && !isLastLine && hasContentAfter) {
                     cleanedLines.append(line)
                 }
-                // Remove trailing empty lines and orphaned empty lines
             }
         }
         
-        // If all lines are empty, keep just one empty text line
         if cleanedLines.allSatisfy({ $0.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
             lines = []
         } else {
             lines = cleanedLines
         }
         
+        isEditing = false
+        selectedLineIDs.removeAll()
+        editingLineID = nil
+        editingText = ""
+    }
+    
+    private func cancelAndExit() {
+        // Simply exit without saving changes
         isEditing = false
         selectedLineIDs.removeAll()
         editingLineID = nil
@@ -326,13 +369,10 @@ struct RichTextEditor: View {
     }
     
     private func createNewLine(after index: Int) {
-        // Get the formatting type from the current line
         let currentLineType = lines[index].type
-        
         let newLine = RichTextLine(content: "", type: currentLineType)
         lines.insert(newLine, at: index + 1)
         
-        // Automatically start editing the new line
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             editingLineID = newLine.id
             editingText = ""
@@ -340,13 +380,10 @@ struct RichTextEditor: View {
     }
     
     private func addNewLine() {
-        // Get the formatting type from the last line, or default to text
         let lastLineType = lines.last?.type ?? .text
-        
         let newLine = RichTextLine(content: "", type: lastLineType)
         lines.append(newLine)
         
-        // Automatically start editing the new line
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
             editingLineID = newLine.id
             editingText = ""
@@ -367,7 +404,6 @@ struct RichTextEditor: View {
         for lineID in selectedLineIDs {
             if let index = lines.firstIndex(where: { $0.id == lineID }) {
                 lines[index].type = newType
-                // Reset completion status when converting
                 if newType != .checkbox {
                     lines[index].isCompleted = false
                 }
@@ -376,20 +412,15 @@ struct RichTextEditor: View {
         selectedLineIDs.removeAll()
     }
     
-    // MARK: - New helper methods for format conversion
-    
     private func convertToFormat(_ newType: RichTextLineType) {
         if let editingID = editingLineID {
-            // Convert the currently editing line
             if let index = lines.firstIndex(where: { $0.id == editingID }) {
                 lines[index].type = newType
-                // Reset completion status when converting away from checkbox
                 if newType != .checkbox {
                     lines[index].isCompleted = false
                 }
             }
         } else if !selectedLineIDs.isEmpty {
-            // Convert selected lines
             convertSelectedLines(to: newType)
         }
     }
@@ -402,14 +433,10 @@ struct RichTextEditor: View {
         return line.type
     }
     
-    // MARK: - Tap Below Lines Handler
-    
     private func tapBelowLines() {
-        // Clear any current selections
         selectedLineIDs.removeAll()
         
         if lines.isEmpty {
-            // If no lines exist, create the first one
             let newLine = RichTextLine(content: "", type: .text)
             lines.append(newLine)
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
@@ -417,16 +444,13 @@ struct RichTextEditor: View {
                 editingText = ""
             }
         } else {
-            // Check if the last line is empty and not being edited
             let lastLine = lines.last!
             if lastLine.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && editingLineID != lastLine.id {
-                // Start editing the existing empty last line
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                     editingLineID = lastLine.id
                     editingText = lastLine.content
                 }
             } else {
-                // Create a new line at the end with the same format as the last line
                 let lastLineType = lastLine.type
                 let newLine = RichTextLine(content: "", type: lastLineType)
                 lines.append(newLine)
