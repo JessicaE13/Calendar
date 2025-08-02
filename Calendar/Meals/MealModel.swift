@@ -2,12 +2,61 @@
 //  MealModel.swift
 //  Calendar
 //
-//  Comprehensive meal planning system with recipes, ingredients, and nutrition tracking
+//  Complete meal planning system with recipes, ingredients, and nutrition tracking
 //
 
 import Foundation
 import CloudKit
 import SwiftUI
+
+// MARK: - Nutrition Data
+struct NutritionData: Codable, Equatable {
+    var calories: Double = 0
+    var protein: Double = 0      // grams
+    var carbs: Double = 0        // grams
+    var fat: Double = 0          // grams
+    var fiber: Double = 0        // grams
+    var sugar: Double = 0        // grams
+    var sodium: Double = 0       // milligrams
+    var vitaminC: Double = 0     // milligrams
+    var calcium: Double = 0      // milligrams
+    var iron: Double = 0         // milligrams
+    
+    // Per 100g serving
+    static let empty = NutritionData()
+    
+    // Scale nutrition data by amount
+    func scaled(by factor: Double) -> NutritionData {
+        return NutritionData(
+            calories: calories * factor,
+            protein: protein * factor,
+            carbs: carbs * factor,
+            fat: fat * factor,
+            fiber: fiber * factor,
+            sugar: sugar * factor,
+            sodium: sodium * factor,
+            vitaminC: vitaminC * factor,
+            calcium: calcium * factor,
+            iron: iron * factor
+        )
+    }
+    
+    // Add nutrition data together
+    static func + (lhs: NutritionData, rhs: NutritionData) -> NutritionData {
+        return NutritionData(
+            calories: lhs.calories + rhs.calories,
+            protein: lhs.protein + rhs.protein,
+            carbs: lhs.carbs + rhs.carbs,
+            fat: lhs.fat + rhs.fat,
+            fiber: lhs.fiber + rhs.fiber,
+            sugar: lhs.sugar + rhs.sugar,
+            sodium: lhs.sodium + rhs.sodium,
+            vitaminC: lhs.vitaminC + rhs.vitaminC,
+            calcium: lhs.calcium + rhs.calcium,
+            iron: lhs.iron + rhs.iron
+        )
+    }
+}
 
 // MARK: - Meal Type
 enum MealType: String, CaseIterable, Codable {
@@ -48,13 +97,15 @@ enum MealType: String, CaseIterable, Codable {
     }
 }
 
-// MARK: - Ingredient Model
+// MARK: - Ingredient Model with Nutrition Support
 struct Ingredient: Identifiable, Codable, Equatable {
     var id = UUID()
     var name: String
     var amount: String // e.g., "2 cups", "1 tbsp", "500g"
     var category: String = "" // e.g., "Vegetables", "Proteins", "Grains"
     var isOptional: Bool = false
+    var nutritionData: NutritionData = NutritionData.empty
+    var fdcId: Int? = nil // USDA Food Data Central ID
     
     init(name: String, amount: String, category: String = "", isOptional: Bool = false) {
         self.name = name
@@ -63,12 +114,58 @@ struct Ingredient: Identifiable, Codable, Equatable {
         self.isOptional = isOptional
     }
     
+    /// Calculate nutrition data for this ingredient's specific amount
+    func calculatedNutrition() -> NutritionData {
+        guard nutritionData != NutritionData.empty else { return NutritionData.empty }
+        
+        let gramsAmount = parseAmountToGrams(amount, for: name)
+        let scaleFactor = gramsAmount / 100.0 // Nutrition data is per 100g
+        
+        return nutritionData.scaled(by: scaleFactor)
+    }
+    
+    /// Parse amount string like "2 cups", "1 tbsp", "500g" and convert to grams
+    private func parseAmountToGrams(_ amountString: String, for ingredient: String) -> Double {
+        let amount = amountString.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // Extract number
+        let components = amount.components(separatedBy: .whitespaces)
+        guard let firstComponent = components.first,
+              let number = Double(firstComponent.filter { $0.isNumber || $0 == "." }) else {
+            return 100.0 // Default to 100g if can't parse
+        }
+        
+        // Common conversions to grams (approximate)
+        if amount.contains("cup") || amount.contains("c") {
+            return number * 240 // 1 cup ≈ 240ml ≈ 240g for liquids
+        } else if amount.contains("tbsp") || amount.contains("tablespoon") {
+            return number * 15 // 1 tbsp ≈ 15g
+        } else if amount.contains("tsp") || amount.contains("teaspoon") {
+            return number * 5 // 1 tsp ≈ 5g
+        } else if amount.contains("oz") {
+            return number * 28.35 // 1 oz = 28.35g
+        } else if amount.contains("lb") || amount.contains("pound") {
+            return number * 453.592 // 1 lb = 453.592g
+        } else if amount.contains("kg") {
+            return number * 1000 // 1 kg = 1000g
+        } else if amount.contains("g") {
+            return number // Already in grams
+        } else if amount.contains("ml") || amount.contains("l") {
+            return number // Approximate ml as grams for liquids
+        } else {
+            // No unit specified, assume it's a reasonable portion
+            return number * 100 // Multiply by 100g as default portion
+        }
+    }
+    
     static func == (lhs: Ingredient, rhs: Ingredient) -> Bool {
         return lhs.id == rhs.id &&
                lhs.name == rhs.name &&
                lhs.amount == rhs.amount &&
                lhs.category == rhs.category &&
-               lhs.isOptional == rhs.isOptional
+               lhs.isOptional == rhs.isOptional &&
+               lhs.nutritionData == rhs.nutritionData &&
+               lhs.fdcId == rhs.fdcId
     }
 }
 
@@ -90,6 +187,19 @@ struct Recipe: Identifiable, Codable, Equatable {
     
     var totalTime: Int {
         return prepTime + cookTime
+    }
+    
+    /// Calculate total nutrition for the entire recipe based on ingredient nutrition data
+    var totalNutrition: NutritionData {
+        return ingredients.reduce(NutritionData.empty) { total, ingredient in
+            return total + ingredient.calculatedNutrition()
+        }
+    }
+    
+    /// Calculate nutrition per serving
+    var nutritionPerServing: NutritionData {
+        guard servings > 0 else { return totalNutrition }
+        return totalNutrition.scaled(by: 1.0 / Double(servings))
     }
     
     init(name: String, description: String = "", prepTime: Int = 0, cookTime: Int = 0, servings: Int = 1) {
@@ -159,6 +269,14 @@ struct PlannedMeal: Identifiable, Codable, Equatable {
     func getRecipe(from mealManager: MealManager) -> Recipe? {
         guard let recipeID = recipeID else { return nil }
         return mealManager.recipes.first { $0.id == recipeID }
+    }
+    
+    @MainActor
+    func getNutritionData(from mealManager: MealManager) -> NutritionData {
+        guard let recipe = getRecipe(from: mealManager) else {
+            return NutritionData.empty
+        }
+        return recipe.nutritionPerServing
     }
     
     // Custom coding keys to handle CloudKit fields
@@ -414,7 +532,7 @@ class MealManager: ObservableObject {
     private func loadSampleData() {
         guard recipes.isEmpty else { return }
         
-        // Sample recipes
+        // Sample recipes with enhanced nutrition-ready ingredients
         let categoryManager = CategoryManager.shared
         let foodCategory = categoryManager.categories.first { $0.name == "Food" } ??
                           categoryManager.categories.first { $0.name == "Personal" }
