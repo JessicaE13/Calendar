@@ -2,7 +2,7 @@
 //  ItemRowView.swift
 //  Calendar
 //
-//  Created by Jessica Estes on 7/29/25.
+//  Complete file with Rich Text Editor integration
 //  Updated with inline editing and edit mode functionality
 //
 
@@ -101,6 +101,7 @@ struct ItemRowView: View {
     }
 }
 
+// MARK: - Item Details View with Rich Text Editor
 struct ItemDetailsView: View {
     let item: Item
     @ObservedObject var itemManager: ItemManager
@@ -108,7 +109,7 @@ struct ItemDetailsView: View {
     
     @State private var isEditMode = false
     @State private var editedTitle = ""
-    @State private var editedDescription = ""
+    @State private var editedDescriptionLines: [RichTextLine] = []
     @State private var editedDate = Date()
     @State private var editedTime = Date()
     @State private var hasTime = false
@@ -183,106 +184,131 @@ struct ItemDetailsView: View {
                         
                         Divider()
                         
-                        // Description & Checklist Section
+                        // Rich Text Description Section
                         VStack(alignment: .leading, spacing: 12) {
-                            Text("Description & Checklist")
+                            Text("Description & Notes")
                                 .font(.system(size: 14))
                                 .foregroundColor(.secondary)
                                 .textCase(.uppercase)
                                 .tracking(1)
                             
                             if isEditMode {
-                                // Edit mode view
-                                VStack(spacing: 0) {
-                                    // Add Subtask button
-                                    Button("Add Subtask") {
-                                        showingAddChecklistItem = true
-                                    }
-                                    .frame(maxWidth: .infinity)
-                                    .padding(.vertical, 12)
-                                    .background(Color.black)
-                                    .foregroundColor(.white)
-                                    .font(.system(size: 16, weight: .medium))
-                                    
-                                    // Description and subtasks
-                                    VStack(alignment: .leading, spacing: 12) {
-                                        TextField("Add notes, meeting links or phone numbers...", text: $editedDescription, axis: .vertical)
-                                            .font(.system(size: 16))
-                                            .lineLimit(2...6)
-                                        
-                                        ForEach(editedChecklist.sorted { $0.sortOrder < $1.sortOrder }) { checklistItem in
-                                            HStack(spacing: 8) {
-                                                Button(action: {
-                                                    toggleEditedChecklistItem(checklistItem)
-                                                }) {
-                                                    Image(systemName: checklistItem.isCompleted ? "checkmark.square.fill" : "square")
-                                                        .foregroundColor(checklistItem.isCompleted ? .green : .gray)
-                                                }
-                                                
-                                                Text(checklistItem.title)
-                                                    .strikethrough(checklistItem.isCompleted)
-                                                    .foregroundColor(checklistItem.isCompleted ? .secondary : .primary)
-                                                
-                                                Spacer()
-                                                
-                                                Button(action: {
-                                                    deleteEditedChecklistItem(checklistItem)
-                                                }) {
-                                                    Image(systemName: "xmark.circle.fill")
-                                                        .foregroundColor(.red.opacity(0.6))
-                                                }
-                                            }
-                                        }
-                                    }
-                                    .padding(16)
-                                    .background(Color.white.opacity(0.8))
-                                }
-                                .cornerRadius(12)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.gray.opacity(0.3), lineWidth: 1)
-                                )
+                                RichTextEditor(lines: $editedDescriptionLines)
                             } else {
-                                // Read-only view
-                                Button(action: { enterEditMode() }) {
-                                    VStack(alignment: .leading, spacing: 12) {
-                                        if !item.description.isEmpty {
-                                            Text(item.description)
-                                                .font(.system(size: 16))
-                                                .multilineTextAlignment(.leading)
-                                                .frame(maxWidth: .infinity, alignment: .leading)
-                                        }
-                                        
-                                        ForEach(item.checklist.sorted { $0.sortOrder < $1.sortOrder }) { checklistItem in
-                                            HStack(spacing: 8) {
-                                                Image(systemName: checklistItem.isCompleted ? "checkmark.square.fill" : "square")
-                                                    .foregroundColor(checklistItem.isCompleted ? .green : .gray)
-                                                
-                                                Text(checklistItem.title)
-                                                    .strikethrough(checklistItem.isCompleted)
-                                                    .foregroundColor(checklistItem.isCompleted ? .secondary : .primary)
-                                                
-                                                Spacer()
-                                            }
-                                        }
-                                        
-                                        if item.description.isEmpty && item.checklist.isEmpty {
-                                            Text("No description or subtasks")
+                                // Read-only rich text display
+                                if editedDescriptionLines.isEmpty {
+                                    Button(action: { enterEditMode() }) {
+                                        VStack(alignment: .leading, spacing: 12) {
+                                            Text("Add notes, meeting links, or create checklists...")
                                                 .font(.system(size: 16))
                                                 .foregroundColor(.secondary)
                                                 .italic()
                                         }
+                                        .padding(16)
+                                        .background(Color.white.opacity(0.5))
+                                        .cornerRadius(12)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
                                     }
-                                    .padding(16)
-                                    .background(Color.white.opacity(0.5))
-                                    .cornerRadius(12)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .buttonStyle(PlainButtonStyle())
+                                } else {
+                                    Button(action: { enterEditMode() }) {
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            ForEach(editedDescriptionLines) { line in
+                                                ReadOnlyRichTextLineView(line: line)
+                                            }
+                                        }
+                                        .padding(16)
+                                        .background(Color.white.opacity(0.5))
+                                        .cornerRadius(12)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
                                 }
-                                .buttonStyle(PlainButtonStyle())
                             }
                         }
                         
                         Divider()
+                        
+                        // Legacy Checklist Section (for backward compatibility)
+                        if !item.checklist.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Legacy Checklist")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.secondary)
+                                    .textCase(.uppercase)
+                                    .tracking(1)
+                                
+                                if isEditMode {
+                                    VStack(spacing: 0) {
+                                        Button("Add Subtask") {
+                                            showingAddChecklistItem = true
+                                        }
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 12)
+                                        .background(Color.black)
+                                        .foregroundColor(.white)
+                                        .font(.system(size: 16, weight: .medium))
+                                        
+                                        VStack(alignment: .leading, spacing: 12) {
+                                            ForEach(editedChecklist.sorted { $0.sortOrder < $1.sortOrder }) { checklistItem in
+                                                HStack(spacing: 8) {
+                                                    Button(action: {
+                                                        toggleEditedChecklistItem(checklistItem)
+                                                    }) {
+                                                        Image(systemName: checklistItem.isCompleted ? "checkmark.square.fill" : "square")
+                                                            .foregroundColor(checklistItem.isCompleted ? .green : .gray)
+                                                    }
+                                                    
+                                                    Text(checklistItem.title)
+                                                        .strikethrough(checklistItem.isCompleted)
+                                                        .foregroundColor(checklistItem.isCompleted ? .secondary : .primary)
+                                                    
+                                                    Spacer()
+                                                    
+                                                    Button(action: {
+                                                        deleteEditedChecklistItem(checklistItem)
+                                                    }) {
+                                                        Image(systemName: "xmark.circle.fill")
+                                                            .foregroundColor(.red.opacity(0.6))
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        .padding(16)
+                                        .background(Color.white.opacity(0.8))
+                                    }
+                                    .cornerRadius(12)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12)
+                                            .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                                    )
+                                } else {
+                                    Button(action: { enterEditMode() }) {
+                                        VStack(alignment: .leading, spacing: 12) {
+                                            ForEach(item.checklist.sorted { $0.sortOrder < $1.sortOrder }) { checklistItem in
+                                                HStack(spacing: 8) {
+                                                    Image(systemName: checklistItem.isCompleted ? "checkmark.square.fill" : "square")
+                                                        .foregroundColor(checklistItem.isCompleted ? .green : .gray)
+                                                    
+                                                    Text(checklistItem.title)
+                                                        .strikethrough(checklistItem.isCompleted)
+                                                        .foregroundColor(checklistItem.isCompleted ? .secondary : .primary)
+                                                    
+                                                    Spacer()
+                                                }
+                                            }
+                                        }
+                                        .padding(16)
+                                        .background(Color.white.opacity(0.5))
+                                        .cornerRadius(12)
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                }
+                                
+                                Divider()
+                            }
+                        }
                         
                         // Date Section
                         VStack(alignment: .leading, spacing: 12) {
@@ -423,13 +449,21 @@ struct ItemDetailsView: View {
         }
     }
     
+    // MARK: - Helper Methods
+    
     private func setupEditableValues() {
         editedTitle = item.title
-        editedDescription = item.description
         editedDate = item.assignedDate
         editedTime = item.assignedTime ?? Date()
         hasTime = item.assignedTime != nil
         editedChecklist = item.checklist
+        
+        // Convert description to rich text lines
+        if item.description.isEmpty {
+            editedDescriptionLines = []
+        } else {
+            editedDescriptionLines = [RichTextLine].fromDescriptionString(item.description)
+        }
     }
     
     private func enterEditMode() {
@@ -442,9 +476,12 @@ struct ItemDetailsView: View {
     private func saveChanges() {
         // Update the item with edited values
         itemManager.updateItemName(item, newName: editedTitle)
-        itemManager.updateItemDescription(item, newDescription: editedDescription)
         itemManager.updateItemDate(item, newDate: editedDate)
         itemManager.updateItemTime(item, time: hasTime ? editedTime : nil)
+        
+        // Convert rich text lines back to description string
+        let newDescription = editedDescriptionLines.toDescriptionString()
+        itemManager.updateItemDescription(item, newDescription: newDescription)
         
         // Update checklist with proper sync
         updateItemChecklist()
@@ -480,6 +517,7 @@ struct ItemDetailsView: View {
             }
         }
     }
+    
     private func toggleEditedChecklistItem(_ checklistItem: ChecklistItem) {
         if let index = editedChecklist.firstIndex(where: { $0.id == checklistItem.id }) {
             editedChecklist[index].isCompleted.toggle()
@@ -495,6 +533,32 @@ struct ItemDetailsView: View {
     }
 }
 
+// MARK: - Read-Only Rich Text Line View
+struct ReadOnlyRichTextLineView: View {
+    let line: RichTextLine
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            if line.type == .checkbox {
+                Text(line.isCompleted ? "☑" : "☐")
+                    .font(.system(size: 16))
+                    .foregroundColor(line.isCompleted ? .green : .gray)
+            } else if line.type == .bullet {
+                Text("•")
+                    .font(.system(size: 16))
+                    .foregroundColor(.secondary)
+            }
+            
+            Text(line.content)
+                .font(.system(size: 16))
+                .strikethrough(line.type == .checkbox && line.isCompleted)
+                .foregroundColor(line.type == .checkbox && line.isCompleted ? .secondary : .primary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+}
+
+// MARK: - Checklist Item Row
 struct ChecklistItemRow: View {
     let checklistItem: ChecklistItem
     let parentItem: Item
