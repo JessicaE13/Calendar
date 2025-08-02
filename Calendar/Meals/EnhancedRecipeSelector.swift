@@ -234,6 +234,86 @@ struct EnhancedRecipeSelector: View {
     }
 }
 
+
+
+// MARK: - Selected Recipe Card Component
+struct SelectedRecipeCard: View {
+    let recipe: Recipe
+    @ObservedObject var categoryManager: CategoryManager
+    let onClear: () -> Void
+    
+    private var categoryColor: Color {
+        if let category = recipe.getCategory(from: categoryManager) {
+            return category.color.swiftUIColor
+        }
+        return Color.gray
+    }
+    
+    var body: some View {
+        HStack(spacing: 12) {
+            // Category color indicator
+            Circle()
+                .fill(categoryColor)
+                .frame(width: 12, height: 12)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(recipe.name)
+                    .font(.system(size: 16))
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
+                    .lineLimit(1)
+                
+                HStack(spacing: 12) {
+                    if recipe.totalTime > 0 {
+                        HStack(spacing: 4) {
+                            Image(systemName: "clock")
+                                .font(.system(size: 10))
+                            Text("\(recipe.totalTime)m")
+                                .font(.system(size: 11))
+                        }
+                        .foregroundColor(.secondary)
+                    }
+                    
+                    if recipe.servings > 1 {
+                        HStack(spacing: 4) {
+                            Image(systemName: "person.2")
+                                .font(.system(size: 10))
+                            Text("\(recipe.servings)")
+                                .font(.system(size: 11))
+                        }
+                        .foregroundColor(.secondary)
+                    }
+                    
+                    if recipe.isFavorite {
+                        Image(systemName: "heart.fill")
+                            .font(.system(size: 10))
+                            .foregroundColor(.red)
+                    }
+                }
+            }
+            
+            Spacer()
+            
+            Button(action: onClear) {
+                Image(systemName: "xmark.circle.fill")
+                    .foregroundColor(.secondary)
+                    .font(.system(size: 16))
+            }
+            .buttonStyle(PlainButtonStyle())
+        }
+        .padding(12)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(categoryColor.opacity(0.1))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(categoryColor.opacity(0.3), lineWidth: 1)
+                )
+        )
+    }
+}
+
+
 // MARK: - Dropdown Recipe Row
 struct DropdownRecipeRow: View {
     let recipe: Recipe

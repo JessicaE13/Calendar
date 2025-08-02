@@ -132,6 +132,153 @@ struct MealCardView: View {
     }
 }
 
+// MARK: - Edit Meal View
+struct EditMealView: View {
+    let meal: PlannedMeal
+    @ObservedObject var mealManager: MealManager
+    @ObservedObject var categoryManager: CategoryManager
+    @Binding var isPresented: Bool
+    
+    @State private var selectedRecipe: Recipe?
+    @State private var customMealName: String
+    @State private var notes: String
+    @State private var useCustomMeal: Bool
+    
+    init(meal: PlannedMeal, mealManager: MealManager, categoryManager: CategoryManager, isPresented: Binding<Bool>) {
+        self.meal = meal
+        self.mealManager = mealManager
+        self.categoryManager = categoryManager
+        self._isPresented = isPresented
+        
+        // Initialize state from the meal
+        self._selectedRecipe = State(initialValue: meal.getRecipe(from: mealManager))
+        self._customMealName = State(initialValue: meal.customMealName ?? "")
+        self._notes = State(initialValue: meal.notes)
+        self._useCustomMeal = State(initialValue: meal.recipeID == nil)
+    }
+    
+    var body: some View {
+        NavigationView {
+            ScrollView {
+                VStack(spacing: 24) {
+                    // Meal Type Display (read-only)
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Meal Type")
+                            .font(.headline)
+                        
+                        HStack {
+                            Image(systemName: meal.mealType.icon)
+                                .foregroundColor(meal.mealType.color)
+                            Text(meal.mealType.displayName)
+                                .font(.system(size: 16))
+                            Spacer()
+                        }
+                        .padding(12)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(meal.mealType.color.opacity(0.1))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(meal.mealType.color.opacity(0.3), lineWidth: 1)
+                                )
+                        )
+                    }
+                    
+                    // Recipe or Custom Meal Selection
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("Meal Content")
+                            .font(.headline)
+                        
+                        HStack {
+                            Button(action: {
+                                useCustomMeal = false
+                                customMealName = ""
+                            }) {
+                                HStack {
+                                    Image(systemName: !useCustomMeal ? "checkmark.circle.fill" : "circle")
+                                        .foregroundColor(!useCustomMeal ? .blue : .gray)
+                                    Text("Use Recipe")
+                                }
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            
+                            Spacer()
+                            
+                            Button(action: {
+                                useCustomMeal = true
+                                selectedRecipe = nil
+                            }) {
+                                HStack {
+                                    Image(systemName: useCustomMeal ? "checkmark.circle.fill" : "circle")
+                                        .foregroundColor(useCustomMeal ? .blue : .gray)
+                                    Text("Custom Meal")
+                                }
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+                        
+                        if useCustomMeal {
+                            TextField("Enter meal name", text: $customMealName)
+                                .textFieldStyle(RoundedBorderTextFieldStyle())
+                        } else {
+                            EnhancedRecipeSelector(
+                                selectedRecipe: $selectedRecipe,
+                                mealManager: mealManager,
+                                categoryManager: categoryManager
+                            )
+                        }
+                    }
+                    
+                    // Notes
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Notes")
+                            .font(.headline)
+                        
+                        TextField("Any special notes or modifications", text: $notes, axis: .vertical)
+                            .textFieldStyle(RoundedBorderTextFieldStyle())
+                            .lineLimit(2...4)
+                    }
+                    
+                    Spacer(minLength: 40)
+                }
+                .padding()
+            }
+            .navigationTitle("Edit Meal")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("Cancel") {
+                        isPresented = false
+                    }
+                }
+                
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Save") {
+                        var updatedMeal = meal
+                        updatedMeal.recipeID = useCustomMeal ? nil : selectedRecipe?.id
+                        updatedMeal.customMealName = useCustomMeal ? customMealName : nil
+                        updatedMeal.notes = notes
+                        
+                        mealManager.updatePlannedMeal(updatedMeal)
+                        isPresented = false
+                    }
+                    .fontWeight(.semibold)
+                    .disabled(!isValidMeal)
+                }
+            }
+        }
+        .presentationDetents([.height(600), .large])
+    }
+    
+    private var isValidMeal: Bool {
+        if useCustomMeal {
+            return !customMealName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        } else {
+            return selectedRecipe != nil
+        }
+    }
+}
+
 // Enhanced nutrition summary with better styling
 struct EnhancedNutritionSummary: View {
     let selectedDate: Date
@@ -388,6 +535,7 @@ struct EnhancedMealTypeRow: View {
 }
 
 // MARK: - Meal Planning View (Simplified)
+// Updated MealPlanningView with fixed toolbar syntax
 struct MealPlanningView: View {
     let selectedDate: Date
     @ObservedObject var mealManager: MealManager
@@ -546,7 +694,6 @@ struct MealPlanningView: View {
         }
     }
 }
-
 struct MealTypeSection: View {
     let mealType: MealType
     let selectedDate: Date
