@@ -2,7 +2,7 @@
 //  CalendarGridView.swift
 //  Calendar
 //
-//  Updated to support both full calendar and pinned week views
+//  Updated to use CalendarDayView instead of CompactCalendarDayView
 //
 
 import SwiftUI
@@ -232,11 +232,10 @@ struct CalendarGridView: View {
                     LazyVGrid(columns: Array(repeating: GridItem(.fixed(daySize)), count: 7), spacing: gridSpacing) {
                         ForEach(Array(currentWeek.enumerated()), id: \.offset) { index, date in
                             if let date = date {
-                                CompactCalendarDayView(
+                                CalendarDayView(
                                     date: date,
                                     currentMonth: currentMonth,
-                                    selectedDate: $selectedDate,
-                                    daySize: daySize
+                                    selectedDate: $selectedDate
                                 )
                             } else {
                                 Color.clear
@@ -255,11 +254,10 @@ struct CalendarGridView: View {
                         ForEach(weeks, id: \.self) { week in
                             ForEach(Array(week.enumerated()), id: \.offset) { index, date in
                                 if let date = date {
-                                    CompactCalendarDayView(
+                                    CalendarDayView(
                                         date: date,
                                         currentMonth: currentMonth,
-                                        selectedDate: $selectedDate,
-                                        daySize: daySize
+                                        selectedDate: $selectedDate
                                     )
                                 } else {
                                     Color.clear
@@ -387,8 +385,6 @@ struct CalendarGridView: View {
         }
     }
 }
-
-
 
 #Preview {
     @Previewable @State var selectedDate = Date()
